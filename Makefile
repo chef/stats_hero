@@ -22,6 +22,9 @@ dialyzer:
 $(DEPS):
 	@rebar get-deps
 
+doc:
+	@rebar doc skip_deps=true
+
 eunit: compile
 	@rebar skip_deps=true eunit
 
@@ -32,4 +35,4 @@ tags: TAGS
 TAGS:
 	mkdir -p deps;find src deps -name "*.[he]rl" -print | etags -
 
-.PHONY: tags
+.PHONY: tags doc

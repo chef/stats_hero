@@ -22,6 +22,8 @@ start_link() ->
 
 init([]) ->
     error_logger:info_msg("starting stats_hero_sup~n"),
+    %% We want the top-level supervisor to own the stats_hero ETS table to ensure it is
+    %% always available.
     stats_hero:init_storage(),
     Children = lists:foldl(fun new_child/2, [], ?CHILD_TYPES),
     {ok, {{one_for_one, 60, 10}, Children}}.

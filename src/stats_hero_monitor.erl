@@ -2,12 +2,11 @@
 %% ex: ts=4 sw=4 et
 %% @author Seth Falcon <seth@opscode.com>
 %% @copyright 2012 Opscode Inc.
-%% @doc stats_hero_monitor monitor stats_hero worker processes
+%% @doc The stats_hero_monitor monitors stats_hero worker processes
 %%
-%% Goal in life is to make sure the stats_hero worker processes don't leave any cruft behind
-%% in the ETS table that keeps track of the `request_id <=> pid' mapping.
+%% Its Goal in life is to make sure the stats_hero worker processes don't leave any cruft
+%% behind in the ETS table that keeps track of the `request_id <=> pid' mapping.  @end
 %% @end
-
 -module(stats_hero_monitor).
 -behaviour(gen_server).
 
@@ -29,9 +28,10 @@
 -record(state, { count = 0 :: non_neg_integer() }).
 
 -spec register(pid()) -> ok.
-%% @doc Each stats_hero worker process calls this function to register itself with a
-%% monitor.
-%%
+%% @doc Register `Pid' as a stats_hero worker process that needs monitoring.  When the
+%% process associated with `Pid' exists, the `stats_hero_monitor' with receive a `DOWN'
+%% message and will call {@link stats_hero:clean_worker_data/1} to remove the worker's
+%% entries from the shared ETS table.
 %%
 register(Pid) ->
     gen_server:call(?SERVER, {register, Pid}).
@@ -45,8 +45,6 @@ registered_count() ->
 %% @doc Start the stats_hero_monitor process.
 %%
 start_link() ->
-    %% this server is intended to be a short-lived companion to a request process, so we
-    %% avoid registering by name.
     gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
 
 %%

@@ -174,6 +174,12 @@ log_request(Logger, Level, TList) ->
     ok.
 
 -spec report_metrics(pid() | binary(), integer()) -> not_found | ok.
+%% @doc Send accumulated metric data to estatsd. `ReqId' is used to find the appropriate
+%% stats_hero worker process. `StatusCode' is an integer (usually an HTTP status code) used
+%% in some of the generated metric labels. The atom `not_found' is returned if no worker
+%% process was found.
+%%
+%% The time reported for the entire request is the time between worker start and this call.
 report_metrics(ReqId, StatusCode) when is_binary(ReqId) ->
     case find_stats_hero(ReqId) of
         not_found -> not_found;
