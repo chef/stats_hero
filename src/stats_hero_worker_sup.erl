@@ -21,7 +21,7 @@
 %% request_id.
 %% @see stats_hero:start_link/1
 new_worker(Config) ->
-    supervisor:start_child(?SERVER, Config).
+    supervisor:start_child(?SERVER, [Config]).
 
 start_link() ->
     supervisor:start_link({local, ?SERVER}, ?MODULE, []).
