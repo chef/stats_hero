@@ -1,0 +1,12 @@
+{application, stats_hero,
+ [
+  {description, "Metrics and logging helper app for Opscode Erlang projects"},
+  {vsn, git},
+  {registered, [stats_hero_monitor, stats_hero_worker_sup]},
+  {applications, [
+		  kernel,
+		  stdlib
+		 ]},
+  {mod, {stats_hero_app, []}},
+  {env, []}
+ ]}.
