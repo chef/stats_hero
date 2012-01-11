@@ -16,14 +16,13 @@
 %% API
 -export([ctime/3,
          alog/3,
-         report_tuples/1,
          report_metrics/2,
+         snapshot/2,
          start_link/1,
          label/2,
          clean_worker_data/1,
          stop_worker/1,
-         init_storage/0,
-         log_request/3]).
+         init_storage/0]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -54,7 +53,10 @@
 -record(state, {
           estatsd_host           :: string(),
           estatsd_port           :: non_neg_integer(),
-          start_time             :: {non_neg_integer(), non_neg_integer(), non_neg_integer()},
+          start_time             :: {non_neg_integer(), non_neg_integer(),
+                                     non_neg_integer()},
+          end_time               :: {non_neg_integer(), non_neg_integer(),
+                                     non_neg_integer()} | undefined,
           my_app                 :: binary(),
           my_host                :: binary(),
           request_label          :: binary(),   % roles
@@ -160,18 +162,24 @@ alog(ReqId, {Level, Label}, Msg) ->
             gen_server:cast(Pid, {alog, {Level, Label}, Msg})
     end.
 
-report_tuples(Pid) ->
-    gen_server:call(Pid, report_tuples).
-
--spec log_request(atom(), atom(), [{string()|binary()|atom(), any()}]) -> ok.
-%% @doc Log a request using fast_log
+-spec snapshot(pid() | binary(), agg | no_agg | all) -> [{binary(), integer()}].
+%% @doc Return a snapshot of currently tracked metrics. The return value is a proplist with
+%% binary keys and integer values. If {@link stats_hero:report_metrics/2} has already been
+%% called, the request time recorded at the time of that call is returns in the
+%% `<<"req_time">>' key. Otherwise, the request time thus far is returned, but not stored.
 %%
-%% `Logger' is the name of the fast_log logger, `Level' is the logging level to log the
-%% request at. `TList' is a tuple list of data to be logged. Keys should be atoms, strings,
-%% or binaries; values should be iolists.
-log_request(Logger, Level, TList) ->
-    fast_log:Level(Logger, TList),
-    ok.
+%% This function is useful for obtaining metrics related to upstream service calls for
+%% logging. If no stats_hero worker is associated with `ReqId', then an empty list is
+%% returned.
+%%
+snapshot(ReqId, Type) when is_binary(ReqId), Type =:= agg;
+                           Type =:= no_agg; Type =:= all ->
+    case find_stats_hero(ReqId) of
+        not_found -> [];
+        Pid -> snapshot(Pid, Type)
+    end;
+snapshot(Pid, Type) when is_pid(Pid) ->
+    gen_server:call(Pid, {snapshot, Type, os:timestamp()}).
 
 -spec report_metrics(pid() | binary(), integer()) -> not_found | ok.
 %% @doc Send accumulated metric data to estatsd. `ReqId' is used to find the appropriate
@@ -245,10 +253,21 @@ init(Config) ->
     register(State#state.request_id),
     {ok, State}.
 
-handle_call(_, _From, State) ->
-    {reply, unhandled, State}.
+handle_call({snapshot, Type, SnapTime}, _From,
+            #state{start_time = StartTime,
+                   end_time = EndTime0,
+                   metrics = Metrics,
+                   upstream_prefixes = Prefixes}=State) ->
+    EndTime = case EndTime0 of
+                  undefined -> SnapTime;
+                  ATime -> ATime
+              end,
+    ReqTime = timer:now_diff(EndTime, StartTime) div 1000,
+    {reply, make_log_tuples({Type, Prefixes}, ReqTime, Metrics), State};
 
 handle_cast({ctime_time, Label, {Time, Unit}}, #state{metrics=Metrics}=State) ->
+handle_call(_, _From, State) ->
+    {reply, unhandled, State}.
     CTimer = fetch_ctimer(Label, Metrics),
     CTimer1 = update_ctimer(CTimer, {Time, Unit}),
     State1 = State#state{metrics = store_ctimer(Label, CTimer1, Metrics)},
@@ -433,16 +452,26 @@ do_report_metrics(ReqTime, StatusCode,
     send_payload(EstatsdHost, EstatsdPort, Payload),
     ok.
 
-%% make_log_tuples(ReqTime, #state{metrics = Metrics}) ->
-%%     Ans = dict:fold(fun(Label, #ctimer{}=CTimer, Acc) ->
-%%                             [A, B] = ctimer_to_list(Label, CTimer),
-%%                             [A, B | Acc];
-%%                        (_, _, Acc) -> Acc end, [], Metrics),
-%%     [{<<"req_time">>, ReqTime}| Ans].
+make_log_tuples({no_agg, _}, ReqTime, Metrics) ->
+    Ans = dict:fold(fun(Label, #ctimer{}=CTimer, Acc) ->
+                            [A, B] = ctimer_to_list(Label, CTimer),
+                            [A, B | Acc];
+                       (_, _, Acc) -> Acc end, [], Metrics),
+    [{<<"req_time">>, ReqTime}| Ans];
+make_log_tuples({agg, Prefixes}, ReqTime, Metrics) ->
+    Ans = dict:fold(fun(Label, #ctimer{}=CTimer, Acc) ->
+                            [A, B] = ctimer_to_list(Label, CTimer),
+                            [A, B | Acc];
+                       (_, _, Acc) -> Acc end, [],
+                    upstreams_by_prefix(Metrics, Prefixes)),
+    [{<<"req_time">>, ReqTime}| Ans];
+make_log_tuples({all, Prefixes}, ReqTime, Metrics) ->
+    [{<<"req_time">>, _}| Agg] = make_log_tuples({agg, Prefixes}, ReqTime, Metrics),
+    make_log_tuples({no_agg, none}, ReqTime, Metrics) ++ Agg.
 
-%% ctimer_to_list(Label, #ctimer{count = Count, time = Time}) when is_binary(Label) ->
-%%     [{<<Label/binary, "_time">>, Time},
-%%      {<<Label/binary, "_count">>, Count}].
+ctimer_to_list(Label, #ctimer{count = Count, time = Time}) when is_binary(Label) ->
+    [{<<Label/binary, "_time">>, Time},
+     {<<Label/binary, "_count">>, Count}].
 
 upstreams_by_prefix(Metrics, Prefixes) ->
     dict:fold(fun(Key, #ctimer{}=Value, Acc) ->
