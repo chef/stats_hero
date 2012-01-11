@@ -16,6 +16,7 @@
 %% API
 -export([ctime/3,
          alog/3,
+         read_alog/2,
          report_metrics/2,
          snapshot/2,
          start_link/1,
@@ -138,20 +139,19 @@ stop_worker(Pid) ->
     gen_server:cast(Pid, stop_worker),
     ok.
 
--spec clean_worker_data(pid()) -> true | false.
+-spec clean_worker_data(pid()) -> ok | not_found.
 %% @doc Remove pid/req_id mapping for the stats_hero worker given by `Pid'.
 %%
 %% This is intended to be called by a process that monitors all stats_hero workers and
-%% cleans up their data when they exit. Returns `false' if no data was found in the table
-%% and `true' otherwise.
+%% cleans up their data when they exit. Returns `not_found' if no data was found in the table
+%% and `ok' otherwise.
 clean_worker_data(Pid) ->
     case find_req_id(Pid) of
-        not_found ->
-            false;
+        not_found -> not_found;
         ReqId ->
             ets:delete(?SH_WORKER_TABLE, Pid),
             ets:delete(?SH_WORKER_TABLE, ReqId),
-            true
+            ok
     end.
 
 -spec alog(binary(), binary(), iolist()) -> ok | not_found.
@@ -174,8 +174,7 @@ alog(ReqId, Label, Msg) ->
 %% logging. If no stats_hero worker is associated with `ReqId', then an empty list is
 %% returned.
 %%
-snapshot(ReqId, Type) when is_binary(ReqId), Type =:= agg;
-                           Type =:= no_agg; Type =:= all ->
+snapshot(ReqId, Type) when is_binary(ReqId) ->
     case find_stats_hero(ReqId) of
         not_found -> [];
         Pid -> snapshot(Pid, Type)
@@ -183,6 +182,16 @@ snapshot(ReqId, Type) when is_binary(ReqId), Type =:= agg;
 snapshot(Pid, Type) when is_pid(Pid) ->
     gen_server:call(Pid, {snapshot, Type, os:timestamp()}).
 
+-spec read_alog(pid() | binary(), binary()) -> iolist() | not_found.
+%% @doc Retrieve log message stored at `Label' for the worker associated with `ReqId'.
+read_alog(ReqId, Label) when is_binary(ReqId) ->
+    case find_stats_hero(ReqId) of
+        not_found -> not_found;
+        Pid -> read_alog(Pid, Label)
+    end;
+read_alog(Pid, Label) when is_pid(Pid) ->
+    gen_server:call(Pid, {read_alog, Label}).
+        
 -spec report_metrics(pid() | binary(), integer()) -> not_found | ok.
 %% @doc Send accumulated metric data to estatsd. `ReqId' is used to find the appropriate
 %% stats_hero worker process. `StatusCode' is an integer (usually an HTTP status code) used
@@ -190,19 +199,19 @@ snapshot(Pid, Type) when is_pid(Pid) ->
 %% process was found.
 %%
 %% The time reported for the entire request is the time between worker start and this call.
-report_metrics(ReqId, StatusCode) when is_binary(ReqId) ->
+report_metrics(ReqId, StatusCode) when is_binary(ReqId), is_integer(StatusCode) ->
     case find_stats_hero(ReqId) of
         not_found -> not_found;
         Pid -> report_metrics(Pid, StatusCode)
     end;
-report_metrics(Pid, StatusCode) when is_integer(StatusCode) ->
+report_metrics(Pid, StatusCode) when is_pid(Pid), is_integer(StatusCode) ->
     EndTime = os:timestamp(),
     gen_server:cast(Pid, {report_metrics, EndTime, StatusCode}),
     ok.
 
 %% @doc Start your personalized stats_hero process.
 %%
-%% `Config' is a proplist with keys: requet_label, request_action, estatsd_host,
+%% `Config' is a proplist with keys: request_label, request_action, estatsd_host,
 %% estatsd_port, upstream_prefixes, my_app, org_name, and request_id.
 %%
 start_link(Config) ->
@@ -266,6 +275,9 @@ handle_call({snapshot, Type, SnapTime}, _From,
               end,
     ReqTime = timer:now_diff(EndTime, StartTime) div 1000,
     {reply, make_log_tuples({Type, Prefixes}, ReqTime, Metrics), State};
+handle_call({read_alog, Label}, _From, #state{metrics=Metrics}=State) ->
+    ALog = fetch_alog(Label, Metrics),
+    {reply, message(ALog), State};
 handle_call(_, _From, State) ->
     {reply, unhandled, State}.
 
@@ -393,9 +405,9 @@ fetch_alog(Key, Metrics) ->
 update_alog(#alog{message = MsgList}, NewMsg) ->
     #alog{message = [NewMsg|MsgList]}.
 
-%% %% Extract the message from an append log as an iolist().
-%% message(#alog{message = MsgList}) ->
-%%     lists:reverse(MsgList).
+%% Extract the message from an append log as an iolist().
+message(#alog{message = MsgList}) ->
+    lists:reverse(MsgList).
 
 store_alog(Label, #alog{}=ALog, Metrics) ->
     dict:store(Label, ALog, Metrics).
@@ -439,8 +451,9 @@ do_report_metrics(ReqTime, StatusCode,
                          upstream_prefixes = Prefixes,
                          estatsd_host = EstatsdHost,
                          estatsd_port = EstatsdPort}) ->
-    Stats = [{[MyApp, ".application.byStatusCode.", integer_to_list(StatusCode)], 1, "m"},
-             {[MyApp, ".", MyHost, ".byStatusCode.", StatusCode], 1, "m"},
+    StatusStr = integer_to_list(StatusCode),
+    Stats = [{[MyApp, ".application.byStatusCode.", StatusStr], 1, "m"},
+             {[MyApp, ".", MyHost, ".byStatusCode.", StatusStr], 1, "m"},
              {[MyApp, ".application.byOrgName.", OrgName], ReqTime, "h"},
              {[MyApp, ".application.allRequests"], ReqTime, "h"},
              {[MyApp, ".", MyHost, ".allRequests"], ReqTime, "h"},
@@ -465,11 +478,11 @@ make_log_tuples({agg, Prefixes}, ReqTime, Metrics) ->
                             [A, B] = ctimer_to_list(Label, CTimer),
                             [A, B | Acc];
                        (_, _, Acc) -> Acc end, [],
-                    upstreams_by_prefix(Metrics, Prefixes)),
+                    aggregate_by_prefix(Metrics, Prefixes)),
     [{<<"req_time">>, ReqTime}| Ans];
 make_log_tuples({all, Prefixes}, ReqTime, Metrics) ->
-    [{<<"req_time">>, _}| Agg] = make_log_tuples({agg, Prefixes}, ReqTime, Metrics),
-    make_log_tuples({no_agg, none}, ReqTime, Metrics) ++ Agg.
+    [{<<"req_time">>, _} | Agg] = make_log_tuples({agg, Prefixes}, ReqTime, Metrics),
+    [{<<"req_time">>, ReqTime} | make_log_tuples({no_agg, none}, ReqTime, Metrics) ++ Agg].
 
 ctimer_to_list(Label, #ctimer{count = Count, time = Time}) when is_binary(Label) ->
     [{<<Label/binary, "_time">>, Time},

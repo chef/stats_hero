@@ -14,7 +14,7 @@ distclean:
 
 compile: $(DEPS)
 	@rebar compile
-#	@dialyzer -Wrace_conditions -Wunderspecs -r ebin
+	@dialyzer -Wrace_conditions -Wunderspecs -r ebin
 
 dialyzer:
 	@dialyzer -Wrace_conditions -Wunderspecs -r ebin
