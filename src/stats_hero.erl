@@ -154,12 +154,14 @@ clean_worker_data(Pid) ->
             true
     end.
 
-%% @doc Append `Msg' to log identified by `{Level, Label}'.
-alog(ReqId, {Level, Label}, Msg) ->
+-spec alog(binary(), binary(), iolist()) -> ok | not_found.
+%% @doc Append `Msg' to log identified by `Label' using the stats_hero worker found via the
+%% specified `ReqId'.
+alog(ReqId, Label, Msg) ->
     case find_stats_hero(ReqId) of
-        not_found -> ignored;
+        not_found -> not_found;
         Pid ->
-            gen_server:cast(Pid, {alog, {Level, Label}, Msg})
+            gen_server:cast(Pid, {alog, Label, Msg})
     end.
 
 -spec snapshot(pid() | binary(), agg | no_agg | all) -> [{binary(), integer()}].
@@ -264,10 +266,10 @@ handle_call({snapshot, Type, SnapTime}, _From,
               end,
     ReqTime = timer:now_diff(EndTime, StartTime) div 1000,
     {reply, make_log_tuples({Type, Prefixes}, ReqTime, Metrics), State};
-
-handle_cast({ctime_time, Label, {Time, Unit}}, #state{metrics=Metrics}=State) ->
 handle_call(_, _From, State) ->
     {reply, unhandled, State}.
+
+handle_cast({ctime_time, Label, {Time, Unit}}, #state{metrics=Metrics}=State) ->
     CTimer = fetch_ctimer(Label, Metrics),
     CTimer1 = update_ctimer(CTimer, {Time, Unit}),
     State1 = State#state{metrics = store_ctimer(Label, CTimer1, Metrics)},
@@ -276,10 +278,10 @@ handle_cast({report_metrics, EndTime, StatusCode}, #state{start_time = StartTime
     ReqTime = timer:now_diff(EndTime, StartTime) div 1000,
     do_report_metrics(ReqTime, StatusCode, State),
     {noreply, State};
-handle_cast({alog, {_Level, _Label}=Key, Msg}, #state{metrics=Metrics}=State) ->
-    ALog = fetch_alog(Key, Metrics),
+handle_cast({alog, Label, Msg}, #state{metrics=Metrics}=State) ->
+    ALog = fetch_alog(Label, Metrics),
     ALog1 = update_alog(ALog, Msg),
-    State1 = State#state{metrics = store_alog(Key, ALog1, Metrics)},
+    State1 = State#state{metrics = store_alog(Label, ALog1, Metrics)},
     {noreply, State1};
 handle_cast(stop_worker, State) ->
     {stop, normal, State};
@@ -299,12 +301,12 @@ code_change(_OldVsn, State, _Extra) ->
 %% private functions
 %%
 
--spec worker_ctime(req_id(), binary(), timing()) -> ignored | ok.
+-spec worker_ctime(req_id(), binary(), timing()) -> not_found | ok.
 worker_ctime(ReqId, Label, {Time, Unit}) when Unit =:= ms; Unit =:= micros ->
     case find_stats_hero(ReqId) of
         not_found ->
             %% FIXME: should we log something here?
-            ignored;
+            not_found;
         Pid ->
             gen_server:cast(Pid, {ctime_time, Label, {Time, Unit}}),
             ok
