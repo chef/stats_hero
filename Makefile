@@ -1,4 +1,4 @@
-DEPS = deps/fast_log
+# DEPS = deps/something
 
 all: compile eunit
 
@@ -14,7 +14,7 @@ distclean:
 
 compile: $(DEPS)
 	@rebar compile
-	@dialyzer -Wrace_conditions -Wunderspecs -r ebin
+#	@dialyzer -Wrace_conditions -Wunderspecs -r ebin
 
 dialyzer:
 	@dialyzer -Wrace_conditions -Wunderspecs -r ebin
