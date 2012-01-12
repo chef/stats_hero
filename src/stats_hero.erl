@@ -423,6 +423,11 @@ hostname() ->
 -spec send_start_metrics(#state{}) -> ok.
 %% @doc Send start metrics to estatsd. These are all meters and are sent when the stats_hero
 %% process is initialized.
+%%
+%% We currently record application all requests, application by org, application by host all
+%% requests, and application by request type.
+%% 
+%% TODO: make this configurable and not Opscode specific
 send_start_metrics(#state{my_app = MyApp, my_host = MyHost,
                           request_label = ReqLabel, request_action = ReqAction,
                           org_name = OrgName,
@@ -440,6 +445,16 @@ send_start_metrics(#state{my_app = MyApp, my_host = MyHost,
 %% terminating.
 %%
 %% The upstream requests are collapsed according to the upstream prefix list.
+%%
+%% We send a status code meter metric for application and by host application. We package
+%% the request time into four metrics: application all requests, application by org, by host
+%% all requests, and application by request type.
+%%
+%% In addition, we inspect the `upstream_prefixes' and aggregate collected metrics that
+%% match those keys. The prefix keys are then add to a top-level application upstream
+%% requests and application by request type upstream requests.
+%%
+%% TODO: refactor to make the set of metrics configurable
 %%
 do_report_metrics(ReqTime, StatusCode,
                   #state{my_app = MyApp,
@@ -467,6 +482,11 @@ do_report_metrics(ReqTime, StatusCode,
     send_payload(EstatsdHost, EstatsdPort, Payload),
     ok.
 
+%% @doc Return a tuple list of time and count data for collected metrics.  You can control
+%% the detail returned as follows. Use `agg' to return metrics aggregated according to
+%% `upstream_prefixes'. Use `no_agg' to return the raw metrics, and use `all' to return
+%% aggregated and raw. An overall `req_time' value will be included, but no corresponding
+%% count since it is always one.
 make_log_tuples({no_agg, _}, ReqTime, Metrics) ->
     Ans = dict:fold(fun(Label, #ctimer{}=CTimer, Acc) ->
                             [A, B] = ctimer_to_list(Label, CTimer),
@@ -484,10 +504,12 @@ make_log_tuples({all, Prefixes}, ReqTime, Metrics) ->
     [{<<"req_time">>, _} | Agg] = make_log_tuples({agg, Prefixes}, ReqTime, Metrics),
     [{<<"req_time">>, ReqTime} | make_log_tuples({no_agg, none}, ReqTime, Metrics) ++ Agg].
 
+%% Turn a #ctimer{} into a proplist appropriate for logging
 ctimer_to_list(Label, #ctimer{count = Count, time = Time}) when is_binary(Label) ->
-    [{<<Label/binary, "_time">>, Time},
-     {<<Label/binary, "_count">>, Count}].
+    [{<<Label/binary, "_time">>, Time}, {<<Label/binary, "_count">>, Count}].
 
+%% Return A list of `{Label, #ctimer{}}' representing all `#ctimer{}'s that match one of the
+%% `upstream_prefixes'.
 upstreams_by_prefix(Metrics, Prefixes) ->
     dict:fold(fun(Key, #ctimer{}=Value, Acc) ->
                       case prefix_match(Key, Prefixes) of
@@ -500,6 +522,9 @@ upstreams_by_prefix(Metrics, Prefixes) ->
                       Acc
               end, [], Metrics).
 
+%% Aggregate all `#ctimer{}' that share a prefix in `upstream_prefixes'.  A dict is returned
+%% with keys matching those elements of `upstream_prefixes' that have at least one match
+%% among the set of `Metrics'.
 aggregate_by_prefix(Metrics, Prefixes) ->
     dict:fold(fun(Key, #ctimer{}=Value, Acc) ->
                       case prefix_match(Key, Prefixes) of
@@ -516,6 +541,8 @@ aggregate_by_prefix(Metrics, Prefixes) ->
               end,
               dict:new(), Metrics).
 
+%% Given a binary `Key' and a list of binary prefixes, return `true' if `Key' matches one of
+%% the prefixes and `false' otherwise.
 prefix_match(Key, [Prefix|Rest]) ->
     case has_prefix(Prefix, Key) of
         true -> Prefix;
@@ -550,4 +577,3 @@ as_bin(X) when is_list(X) ->
     iolist_to_binary(X);
 as_bin(X) when is_binary(X) ->
     X.
-
