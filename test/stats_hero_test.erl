@@ -28,7 +28,6 @@ stats_hero_integration_test_() ->
              application:start(stats_hero),
              capture_udp:start_link(0),
               {ok, Port} = capture_udp:what_port(),
-              ?debugFmt("capture UDP listening on ~p", [Port]),
               ReqId = <<"req_id_123">>,
               Config = [{estatsd_host, "localhost"},
                         {estatsd_port, Port},
@@ -75,7 +74,7 @@ stats_hero_integration_test_() ->
                                                    lists:keyreplace(request_id, 1,
                                                                     Config, {request_id, <<"temp1">>}),
                                                    {estatsd_port, Port - 1}),
-                        {ok, Pid} = stats_hero_worker_sup:new_worker(Config1),
+                        stats_hero_worker_sup:new_worker(Config1),
                         ?assertEqual(2, stats_hero_monitor:registered_count()),
                         %% calling stop worker is async, so we sleep
                         %% to wait for the monitor to receive and
