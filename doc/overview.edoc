@@ -7,9 +7,7 @@
 
 The `stats_hero' application can help you instrument your Erlang
 application with metrics that will be reported to `estatsd' and
-browsable in Graphite. There is also support for request logging (to a
-file via `fast_log') and you may want to use this feature so that your
-application's logs follow Opscode's logging convention.
+browsable in Graphite.
 
 == How to instrument your code to collect metrics ==
 
@@ -47,7 +45,7 @@ upstream name (e.g. `chef_sql' maps to `rdbms'). A future enhancement
 would put this mapping in app config for `stats_hero'. If `Mod' is not
 recognized, an error is raised.
 
-== Sending metrics and logging requests with stats_hero ==
+== Sending metrics with stats_hero ==
 
 At the begining of your request, start a `stats_hero' worker process
 using {@link stats_hero_worker_sup:new_worker/1} like this:
@@ -78,14 +76,17 @@ stats_hero:report_metrics(ReqId, Code),
 Where `ReqId' is your request id as a binary and `Code' is an HTTP
 response code (or similar integer).
 
-You can have `stats_hero' log a standard tuple-formatted log message
-summarizing your request by calling {@link
-stats_hero:log_request/3}. Here's the usage from `chef_rest_wm':
+Finally, you need to tell the `stats_hero' worker that you're done
+with it. Use {@link stats_her:stop_worker/1} for that.
+
+== Obtaining metrics data for request logging ==
+
+You can retrieve call timing and count data from your `stats_hero' worker using {@link stats_hero:snapshot/2}. This will return a proplist suitable for logging with the `fast_log' module tuple logger.
+
+Here's the usage from `chef_rest_wm':
 
 ```
-log_request(Req, #base_state{reqid = ReqId,
-                             log_msg = Msg,
-                             organization_name = Org}) ->
+log_request(Req, #base_state{reqid = ReqId, log_msg = Msg, organization_name = Org}) ->
     Status = wrq:response_code(Req),
     Tuples = [{req_id, ReqId},
               {status, Status},
@@ -94,19 +95,15 @@ log_request(Req, #base_state{reqid = ReqId,
               {path, wrq:raw_path(Req)},
               {user, wrq:get_req_header("x-ops-userid", Req)},
               {msg, {raw, Msg}}],
-    stats_hero:log_request(erchef, log_level(Status), Tuples).
+    PerfTuples = stats_hero:snapshot(ReqId, agg),
+    Level = log_level(Status),
+    fast_log:Level(erchef, Tuples ++ PerfTuples).
 
 log_level(Code) when Code >= 500 ->
     err;
 log_level(_) ->
     info.
 '''
-
-Note that you must have already configured `fast_log' to have an entry
-for the logger that you specify.
-
-Finally, you need to tell the `stats_hero' worker that you're done
-with it. Use {@link stats_her:stop_worker/1} for that.
 
 == Design notes ==
 
@@ -117,3 +114,45 @@ workers also register with the `stats_hero_monitor' which monitors
 each worker to ensure that the pid/reqid mapping is cleaned from the
 ETS table when the worker exits. The top-level supervisor initializes
 the ETS table.
+
+=== Metrics Reported to estatsd ===
+
+Currently, the metrics sent to estatsd (UDP) are as follows and are
+hard-coded into the stats_hero worker. At the start of a request, the
+worker sends the following data:
+
+```
+1|167
+test_hero.application.byOrgName.orginc:1|m
+test_hero.application.allRequests:1|m
+test_hero.test-host.allRequests:1|m
+test_hero.application.byRequestType.nodes.PUT:1|m
+'''
+
+When {@link stats_hero:report_metrics/2} is called the worker sends:
+```
+1|640
+test_hero.application.byStatusCode.200:1|m
+test_hero.test-host.byStatusCode.200:1|m
+test_hero.application.byOrgName.orginc:108|h
+test_hero.application.allRequests:108|h
+test_hero.test-host.allRequests:108|h
+test_hero.application.byRequestType.nodes.PUT:108|h
+test_hero.upstreamRequests.rdbms:1200|h
+test_hero.upstreamRequests.authz:100|h
+test_hero.upstreamRequests.rdbms.nodes.put:200|h
+test_hero.upstreamRequests.rdbms.nodes.fetch:1000|h
+test_hero.upstreamRequests.authz.nodes.read:100|h
+test_hero.application.byRequestType.nodes.PUT.upstreamRequests.rdbms:1200|h
+test_hero.application.byRequestType.nodes.PUT.upstreamRequests.authz:100|h
+'''
+
+=== Mapping modules to upstream labels ===
+
+The current handling of upstream prefixes and module mappings is not
+very flexible. You can specify a list of upstream prefixes when the
+worker is initialized and any metrics (ctimer) with a label that
+matches one of the prefixes will be appropriately aggregated in
+reporting. However, the helper macro used to instrument code currently
+relies on {@link stats_hero:label/2} which hard-codes a mapping of
+module to upstream label. We'd like to make this configurable.
