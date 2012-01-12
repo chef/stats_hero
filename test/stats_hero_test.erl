@@ -167,7 +167,11 @@ stats_hero_integration_test_() ->
                              {<<"test_hero.upstreamRequests.authz">>,<<"100">>,<<"h">>},
                              {<<"test_hero.upstreamRequests.rdbms.nodes.put">>,<<"200">>,<<"h">>},
                              {<<"test_hero.upstreamRequests.rdbms.nodes.fetch">>,<<"1000">>,<<"h">>},
-                             {<<"test_hero.upstreamRequests.authz.nodes.read">>,<<"100">>,<<"h">>}],
+                             {<<"test_hero.upstreamRequests.authz.nodes.read">>,<<"100">>,<<"h">>},
+                             {<<"test_hero.application.byRequestType.nodes.PUT.upstreamRequests.rdbms">>,
+                              <<"1200">>,<<"h">>},
+                             {<<"test_hero.application.byRequestType.nodes.PUT.upstreamRequests.authz">>,
+                              <<"100">>,<<"h">>}],
                         
                         [ begin
                               ?assertEqual(ELabel, GLabel),

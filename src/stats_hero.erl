@@ -474,11 +474,15 @@ do_report_metrics(ReqTime, StatusCode,
              {[MyApp, ".", MyHost, ".allRequests"], ReqTime, "h"},
              {[MyApp, ".application.byRequestType.", ReqLabel, ".", ReqAction], ReqTime, "h"}
             ],
-    UpAggregates = aggregate_by_prefix(Metrics, Prefixes),
+    UpAggregates = dict:to_list(aggregate_by_prefix(Metrics, Prefixes)),
     Upstreams = upstreams_by_prefix(Metrics, Prefixes),
     UpstreamStats =  [ {[MyApp, ".upstreamRequests.", Upstream], CTime#ctimer.time, "h"}
-                       || {Upstream, CTime} <- dict:to_list(UpAggregates) ++ Upstreams ],
-    Payload = [ make_metric_line(M) || M <- Stats ++ UpstreamStats ],
+                       || {Upstream, CTime} <- UpAggregates ++ Upstreams ],
+    %% Now munge the aggregated upstream data to generate by request type label
+    UpstreamByReqStats = [ {[MyApp, ".application.byRequestType.", ReqLabel, ".",
+                             ReqAction, ".upstreamRequests.", Upstream],
+                            CTime#ctimer.time, "h"} || {Upstream, CTime} <- UpAggregates ],
+    Payload = [ make_metric_line(M) || M <- Stats ++ UpstreamStats ++ UpstreamByReqStats ],
     send_payload(EstatsdHost, EstatsdPort, Payload),
     ok.
 
