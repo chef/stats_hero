@@ -23,6 +23,8 @@ expand_label(K) ->
 stats_hero_integration_test_() ->
     {setup,
      fun() ->
+             meck:new(net_adm, [passthrough, unstick]),
+             meck:expect(net_adm, localhost, fun() -> "test-host" end),
              application:start(stats_hero),
              capture_udp:start_link(0),
               {ok, Port} = capture_udp:what_port(),
@@ -55,6 +57,7 @@ stats_hero_integration_test_() ->
              {ReqId, Config, Calls}
      end,
      fun(_X) ->
+             meck:unload(),
              application:stop(stats_hero)
      end,
      fun({ReqId, Config, Calls}) ->
@@ -147,7 +150,7 @@ stats_hero_integration_test_() ->
                         ExpectStart = 
                             [{<<"test_hero.application.byOrgName.orginc">>,<<"1">>,<<"m">>},
                              {<<"test_hero.application.allRequests">>,<<"1">>,<<"m">>},
-                             {<<"test_hero.fanry.allRequests">>,<<"1">>,<<"m">>},
+                             {<<"test_hero.test-host.allRequests">>,<<"1">>,<<"m">>},
                              {<<"test_hero.application.byRequestType.nodes.PUT">>,<<"1">>,<<"m">>}],
                         ?assertEqual(GotStart, ExpectStart),
                         %% For the end metrics, we can't rely on the
@@ -155,10 +158,10 @@ stats_hero_integration_test_() ->
                         %% and types.
                         ExpectEnd = 
                             [{<<"test_hero.application.byStatusCode.200">>,<<"1">>,<<"m">>},
-                             {<<"test_hero.fanry.byStatusCode.200">>,<<"1">>,<<"m">>},
+                             {<<"test_hero.test-host.byStatusCode.200">>,<<"1">>,<<"m">>},
                              {<<"test_hero.application.byOrgName.orginc">>,<<"109">>,<<"h">>},
                              {<<"test_hero.application.allRequests">>,<<"109">>,<<"h">>},
-                             {<<"test_hero.fanry.allRequests">>,<<"109">>,<<"h">>},
+                             {<<"test_hero.test-host.allRequests">>,<<"109">>,<<"h">>},
                              {<<"test_hero.application.byRequestType.nodes.PUT">>,<<"109">>,<<"h">>},
                              {<<"test_hero.upstreamRequests.rdbms">>,<<"1200">>,<<"h">>},
                              {<<"test_hero.upstreamRequests.authz">>,<<"100">>,<<"h">>},

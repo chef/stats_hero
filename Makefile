@@ -1,4 +1,4 @@
-# DEPS = deps/something
+DEPS = deps/meck
 
 all: compile eunit
 
