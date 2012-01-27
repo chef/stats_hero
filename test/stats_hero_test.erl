@@ -147,7 +147,7 @@ stats_hero_integration_test_() ->
                         ?assertEqual(2, MsgCount),
                         [GotStart, GotEnd] = [ parse_shp(M) || M <- Msg ],
                         ExpectStart = 
-                            [{<<"test_hero.application.byOrgName.orginc">>,<<"1">>,<<"m">>},
+                            [{<<"test_hero.application.byOrgname.orginc">>,<<"1">>,<<"m">>},
                              {<<"test_hero.application.allRequests">>,<<"1">>,<<"m">>},
                              {<<"test_hero.test-host.allRequests">>,<<"1">>,<<"m">>},
                              {<<"test_hero.application.byRequestType.nodes.PUT">>,<<"1">>,<<"m">>}],
@@ -158,7 +158,7 @@ stats_hero_integration_test_() ->
                         ExpectEnd = 
                             [{<<"test_hero.application.byStatusCode.200">>,<<"1">>,<<"m">>},
                              {<<"test_hero.test-host.byStatusCode.200">>,<<"1">>,<<"m">>},
-                             {<<"test_hero.application.byOrgName.orginc">>,<<"109">>,<<"h">>},
+                             {<<"test_hero.application.byOrgname.orginc">>,<<"109">>,<<"h">>},
                              {<<"test_hero.application.allRequests">>,<<"109">>,<<"h">>},
                              {<<"test_hero.test-host.allRequests">>,<<"109">>,<<"h">>},
                              {<<"test_hero.application.byRequestType.nodes.PUT">>,<<"109">>,<<"h">>},

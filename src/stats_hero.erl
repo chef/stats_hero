@@ -432,7 +432,7 @@ send_start_metrics(#state{my_app = MyApp, my_host = MyHost,
                           request_label = ReqLabel, request_action = ReqAction,
                           org_name = OrgName,
                           estatsd_host = EstatsdHost, estatsd_port = EstatsdPort}) ->
-    Stats = [{[MyApp, ".application.byOrgName.", OrgName], 1, "m"},
+    Stats = [{[MyApp, ".application.byOrgname.", OrgName], 1, "m"},
              {[MyApp, ".application.allRequests"], 1, "m"},
              {[MyApp, ".", MyHost, ".allRequests"], 1, "m"},
              {[MyApp, ".application.byRequestType.", ReqLabel, ".", ReqAction], 1, "m"}
@@ -469,7 +469,7 @@ do_report_metrics(ReqTime, StatusCode,
     StatusStr = integer_to_list(StatusCode),
     Stats = [{[MyApp, ".application.byStatusCode.", StatusStr], 1, "m"},
              {[MyApp, ".", MyHost, ".byStatusCode.", StatusStr], 1, "m"},
-             {[MyApp, ".application.byOrgName.", OrgName], ReqTime, "h"},
+             {[MyApp, ".application.byOrgname.", OrgName], ReqTime, "h"},
              {[MyApp, ".application.allRequests"], ReqTime, "h"},
              {[MyApp, ".", MyHost, ".allRequests"], ReqTime, "h"},
              {[MyApp, ".application.byRequestType.", ReqLabel, ".", ReqAction], ReqTime, "h"}
