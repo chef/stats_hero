@@ -1,0 +1,102 @@
+%% -*- erlang-indent-level: 4;indent-tabs-mode: nil; fill-column: 92 -*-
+%% ex: ts=4 sw=4 et
+%% @author Seth Falcon <seth@opscode.com>
+%% @copyright 2012 Opscode Inc.
+%% @doc stats_hero_sender gen_server to send metrics over UDP
+%%
+%% @end
+
+-module(stats_hero_sender).
+-behaviour(gen_server).
+
+%% API
+-export([send/1,
+         send/2,
+         start_link/1]).
+
+%% gen_server callbacks
+-export([init/1,
+         handle_call/3,
+         handle_cast/2,
+         handle_info/2,
+         terminate/2,
+         code_change/3]).
+
+-define(SERVER, ?MODULE).
+%% Helper macro for extracting values from proplists; crashes if key not found
+-define(gv(Key, PL), element(2, lists:keyfind(Key, 1, PL))).
+
+-include("stats_hero_sender.hrl").
+
+-record(state, {
+          host        :: string(),
+          port        :: non_neg_integer(),
+          send_socket :: inet:socket()
+         }).
+
+-spec send(pid(), iolist()) -> ok | {error, term()}.
+%% @doc Send `Payload' as a Stats Hero Protocol (SHP) version 1 UDP packet to the estatsd
+%% server configured for this sender. The input Should be the bare metrics without SHP
+%% header. This function will compute the length and add the SHP version and length header
+%% to the payload.
+send(Pid, Payload) ->
+    Length = iolist_size(Payload),
+    Packet = io_lib:format("1|~B~n~s", [Length, Payload]),
+    gen_server:call(Pid, {send, Packet}).
+
+-spec send(iolist()) -> ok | {error, term()}.
+%% @doc Send `Payload' as in `send/2' but uses the pg2 group to find a sender.
+send(Payload) ->
+    case pg2:get_closest_pid(?SH_SENDER_POOL) of
+        {error, Why} -> {error, Why};
+        Pid -> send(Pid, Payload)
+    end.
+
+%% @doc Start your personalized stats_hero process.
+%%
+%% `Config' is a proplist with keys: estatsd_host and estatsd_port.
+%%
+start_link(Config) ->
+    %% this server is intended to be part of a pg2 pool, so we
+    %% avoid registering by name.
+    gen_server:start_link(?MODULE, Config, []).
+
+%%
+%% callbacks
+%%
+
+init(Config) ->
+    {ok, Socket} = gen_udp:open(0),
+    {ok, Port} = inet:port(Socket),
+    error_logger:info_msg("stats_hero_sender starting pid: ~p port: ~p~n",
+                          [self(), Port]),
+    %% assumes that the sender pool has been created
+    ok = pg2:join(?SH_SENDER_POOL, self()),
+    State = #state{host = ?gv(estatsd_host, Config),
+                   port = ?gv(estatsd_port, Config),
+                   send_socket = Socket},
+    {ok, State}.
+
+handle_call({send, Packet}, _From, #state{host = Host,
+                                          port = Port,
+                                          send_socket = Socket}=State) ->
+    %% If we get an error sending the data, this server stops
+    case gen_udp:send(Socket, Host, Port, Packet) of
+        ok -> {reply, ok, State};
+        Error -> {stop, udp_send_failed, Error, State}
+    end;
+handle_call(_, _From, State) ->
+    {reply, unhandled, State}.
+
+handle_cast(_Request, State) ->
+    {noreply, State}.
+
+handle_info(_Info, State) ->
+    {noreply, State}.
+
+terminate(_Reason, _State) ->
+    ok.
+
+code_change(_OldVsn, State, _Extra) ->
+    {ok, State}.
+
