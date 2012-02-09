@@ -7,7 +7,7 @@
 
 -behaviour(supervisor).
 
--define(CHILD_TYPES, [stats_hero_monitor, stats_hero_worker_sup]).
+-define(CHILD_TYPES, [stats_hero_monitor, stats_hero_worker_sup, stats_hero_sender_sup]).
 
 %% API
 -export([start_link/0]).
@@ -35,6 +35,10 @@ new_child(stats_hero_monitor, Children) ->
 new_child(stats_hero_worker_sup, Children) ->
     HeroSup = {stats_hero_worker_sup, {stats_hero_worker_sup, start_link, []}, permanent,
                brutal_kill, supervisor, [stats_hero_worker_sup]},
-    [HeroSup | Children ].
+    [HeroSup | Children ];
+new_child(stats_hero_sender_sup, Children) ->
+    SenderSup = {stats_hero_sender_sup, {stats_hero_sender_sup, start_link, []}, permanent,
+               brutal_kill, supervisor, [stats_hero_sender_sup]},
+    [SenderSup | Children ].
 
 
