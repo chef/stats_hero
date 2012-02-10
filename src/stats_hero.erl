@@ -52,8 +52,6 @@
 -include_lib("eunit/include/eunit.hrl").
 
 -record(state, {
-          estatsd_host           :: string(),
-          estatsd_port           :: non_neg_integer(),
           start_time             :: {non_neg_integer(), non_neg_integer(),
                                      non_neg_integer()},
           end_time               :: {non_neg_integer(), non_neg_integer(),
@@ -211,8 +209,8 @@ report_metrics(Pid, StatusCode) when is_pid(Pid), is_integer(StatusCode) ->
 
 %% @doc Start your personalized stats_hero process.
 %%
-%% `Config' is a proplist with keys: request_label, request_action, estatsd_host,
-%% estatsd_port, upstream_prefixes, my_app, org_name, and request_id.
+%% `Config' is a proplist with keys: request_label, request_action, upstream_prefixes,
+%% my_app, org_name, and request_id.
 %%
 start_link(Config) ->
     %% this server is intended to be a short-lived companion to a request process, so we
@@ -247,9 +245,7 @@ label(BadPrefix, Fun) ->
 
 init(Config) ->
     UpstreamPrefixes = ?gv(upstream_prefixes, Config),
-    State = #state{estatsd_host = ?gv(estatsd_host, Config),
-                   estatsd_port = ?gv(estatsd_port, Config),
-                   start_time = os:timestamp(),
+    State = #state{start_time = os:timestamp(),
                    my_app = as_bin(?gv(my_app, Config)),
                    my_host = hostname(),
                    request_label = as_bin(?gv(request_label, Config)),
@@ -430,15 +426,14 @@ hostname() ->
 %% TODO: make this configurable and not Opscode specific
 send_start_metrics(#state{my_app = MyApp, my_host = MyHost,
                           request_label = ReqLabel, request_action = ReqAction,
-                          org_name = OrgName,
-                          estatsd_host = EstatsdHost, estatsd_port = EstatsdPort}) ->
+                          org_name = OrgName}) ->
     Stats = [{[MyApp, ".application.byOrgname.", OrgName], 1, "m"},
              {[MyApp, ".application.allRequests"], 1, "m"},
              {[MyApp, ".", MyHost, ".allRequests"], 1, "m"},
              {[MyApp, ".application.byRequestType.", ReqLabel, ".", ReqAction], 1, "m"}
             ],
     Payload = [ make_metric_line(M) || M <- Stats ],
-    send_payload(EstatsdHost, EstatsdPort, Payload),
+    send_payload(Payload),
     ok.
 
 %% @doc This is where we package up the accumulated data and send to estatsd prior to
@@ -463,9 +458,7 @@ do_report_metrics(ReqTime, StatusCode,
                          request_action = ReqAction,
                          org_name = OrgName,
                          metrics = Metrics,
-                         upstream_prefixes = Prefixes,
-                         estatsd_host = EstatsdHost,
-                         estatsd_port = EstatsdPort}) ->
+                         upstream_prefixes = Prefixes}) ->
     StatusStr = integer_to_list(StatusCode),
     Stats = [{[MyApp, ".application.byStatusCode.", StatusStr], 1, "m"},
              {[MyApp, ".", MyHost, ".byStatusCode.", StatusStr], 1, "m"},
@@ -483,7 +476,7 @@ do_report_metrics(ReqTime, StatusCode,
                              ReqAction, ".upstreamRequests.", Upstream],
                             CTime#ctimer.time, "h"} || {Upstream, CTime} <- UpAggregates ],
     Payload = [ make_metric_line(M) || M <- Stats ++ UpstreamStats ++ UpstreamByReqStats ],
-    send_payload(EstatsdHost, EstatsdPort, Payload),
+    send_payload(Payload),
     ok.
 
 %% @doc Return a tuple list of time and count data for collected metrics.  You can control
@@ -562,15 +555,8 @@ has_prefix(P, S) ->
         _Else -> false
     end.
 
-send_payload(Server, Port, Payload) ->
-    Length = iolist_size(Payload),
-    Packet = io_lib:format("1|~B~n~s", [Length, Payload]),
-    {ok, Socket} = gen_udp:open(0),
-    try
-        ok = gen_udp:send(Socket, Server, Port, Packet)
-    after
-        gen_udp:close(Socket)
-    end.
+send_payload(Payload) ->
+    stats_hero_sender:send(Payload).
 
 %% Note this only supports integer values, but that is the only type of value currently
 %% being used.
