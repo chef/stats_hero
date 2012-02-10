@@ -8,5 +8,5 @@
 		  stdlib
 		 ]},
   {mod, {stats_hero_app, []}},
-  {env, []}
+  {env, [{udp_socket_pool_size, 5}]}
  ]}.

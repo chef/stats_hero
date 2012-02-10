@@ -25,13 +25,15 @@ stats_hero_integration_test_() ->
      fun() ->
              meck:new(net_adm, [passthrough, unstick]),
              meck:expect(net_adm, localhost, fun() -> "test-host" end),
-             application:start(stats_hero),
              capture_udp:start_link(0),
-              {ok, Port} = capture_udp:what_port(),
+             {ok, Port} = capture_udp:what_port(),
+             %% setup required app environment
+             application:set_env(stats_hero, estatsd_host, "localhost"),
+             application:set_env(stats_hero, estatsd_port, Port),
+             application:set_env(stats_hero, udp_socket_pool_size, 5),
+             application:start(stats_hero),
               ReqId = <<"req_id_123">>,
-              Config = [{estatsd_host, "localhost"},
-                        {estatsd_port, Port},
-                        {request_label, <<"nodes">>},
+              Config = [{request_label, <<"nodes">>},
                         {request_action, <<"PUT">>},
                         {upstream_prefixes, ?UPSTREAMS},
                         {my_app, <<"test_hero">>},
@@ -61,28 +63,6 @@ stats_hero_integration_test_() ->
      end,
      fun({ReqId, Config, Calls}) ->
               [
-               {"stats_hero_monitor keeps track of workers",
-                fun() ->
-                        ?assertEqual(1, stats_hero_monitor:registered_count()),
-                        {ok, Port} = capture_udp:what_port(),
-                        %% This is a bit gross, but we don't want this
-                        %% test to pollute our UDP capture so we guess
-                        %% the the adjacent port is unused. Since we
-                        %% are just blindly sending data to the port
-                        %% over UDP, it hopefully won't matter.
-                        Config1 = lists:keyreplace(estatsd_port, 1,
-                                                   lists:keyreplace(request_id, 1,
-                                                                    Config, {request_id, <<"temp1">>}),
-                                                   {estatsd_port, Port - 1}),
-                        stats_hero_worker_sup:new_worker(Config1),
-                        ?assertEqual(2, stats_hero_monitor:registered_count()),
-                        %% calling stop worker is async, so we sleep
-                        %% to wait for the monitor to receive and
-                        %% process the DOWN message. This is lame.
-                        stats_hero:stop_worker(<<"temp1">>),
-                        timer:sleep(100),       % LAME
-                        ?assertEqual(1, stats_hero_monitor:registered_count())
-                end},
                {"stats_hero functions give not_found or [] for a bad request id",
                 fun() ->
                         ?assertEqual(not_found,
@@ -102,11 +82,13 @@ stats_hero_integration_test_() ->
                         ?assertEqual(not_found,
                                      stats_hero:report_metrics(<<"unknown">>, 404))
                 end},
+
                {"read_alog retrieves a log message",
                 fun() ->
                         ?assertEqual([<<"hello, ">>,<<"world.">>],
                                      stats_hero:read_alog(ReqId, <<"my_log">>))
                 end},
+
                {"snapshot returns the right set of keys", generator,
                 fun() ->
                         BuildKeys = fun(K, Acc) -> expand_label(K) ++ Acc end,
@@ -141,10 +123,10 @@ stats_hero_integration_test_() ->
                         [ ?_assertEqual({Key, Count}, {Key, proplists:get_value(Key, Snapshot)})
                           || {Key, Count} <- dict:to_list(CallCounts) ]
                 end},
-               {"upd is captured",
+
+               {"udp is captured",
                 fun() ->
                         {MsgCount, Msg} = capture_udp:read(),
-                        ?assertEqual(2, MsgCount),
                         [GotStart, GotEnd] = [ parse_shp(M) || M <- Msg ],
                         ExpectStart = 
                             [{<<"test_hero.application.byOrgname.orginc">>,<<"1">>,<<"m">>},
@@ -176,10 +158,26 @@ stats_hero_integration_test_() ->
                               ?assertEqual(ELabel, GLabel),
                               ?assertEqual(EType, GType)
                           end || {{ELabel, _, EType}, {GLabel, _, GType}} <- lists:zip(ExpectEnd, GotEnd) ]
+                end},
+               %% put this test last because we don't want to include
+               %% the startup msg in UDP verification
+               {"stats_hero_monitor keeps track of workers",
+                fun() ->
+                        ?assertEqual(1, stats_hero_monitor:registered_count()),
+                        Config1 = lists:keyreplace(request_id, 1, Config,
+                                                   {request_id, <<"temp1">>}),
+                        stats_hero_worker_sup:new_worker(Config1),
+                        ?assertEqual(2, stats_hero_monitor:registered_count()),
+                        %% calling stop worker is async, so we sleep
+                        %% to wait for the monitor to receive and
+                        %% process the DOWN message. This is lame.
+                        stats_hero:stop_worker(<<"temp1">>),
+                        timer:sleep(200),       % LAME
+                        ?assertEqual(1, stats_hero_monitor:registered_count())
                 end}
               ]
-      end
-     }.
+     end
+    }.
 
 
 %% El-Cheapo Stats Hero Protocol parsing for test verification
