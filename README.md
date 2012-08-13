@@ -1,4 +1,4 @@
-# sqerl #
+# stats_hero #
 
 This is the repository for stats_hero, used for stats collection with Chef.
 
@@ -28,7 +28,7 @@ Once your repository is set up, you can start working on the code.
 
 Source:
 
-    https://github.com/opscode/sqerl
+    https://github.com/opscode/stats_hero
 
 Tickets/Issues:
 
