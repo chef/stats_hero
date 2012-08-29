@@ -266,7 +266,7 @@ init(Config) ->
                    my_host = hostname(),
                    request_label = as_bin(?gv(request_label, Config)),
                    request_action = as_bin(?gv(request_action, Config)),
-                   org_name = as_bin(?gv(org_name, Config)),
+                   org_name = atom_or_bin(?gv(org_name, Config)),
                    request_id = as_bin(?gv(request_id, Config)),
                    metrics = dict:new(),
                    upstream_prefixes = UpstreamPrefixes},
@@ -443,11 +443,11 @@ hostname() ->
 send_start_metrics(#state{my_app = MyApp, my_host = MyHost,
                           request_label = ReqLabel, request_action = ReqAction,
                           org_name = OrgName}) ->
-    Stats = [{[MyApp, ".application.byOrgname.", OrgName], 1, "m"},
-             {[MyApp, ".application.allRequests"], 1, "m"},
+    Stats0 = [{[MyApp, ".application.allRequests"], 1, "m"},
              {[MyApp, ".", MyHost, ".allRequests"], 1, "m"},
              {[MyApp, ".application.byRequestType.", ReqLabel, ".", ReqAction], 1, "m"}
             ],
+    Stats = maybe_add_org(OrgName, {[MyApp, ".application.byOrgname.", OrgName], 1, "m"}, Stats0),
     Payload = [ make_metric_line(M) || M <- Stats ],
     send_payload(Payload),
     ok.
@@ -476,13 +476,15 @@ do_report_metrics(ReqTime, StatusCode,
                          metrics = Metrics,
                          upstream_prefixes = Prefixes}) ->
     StatusStr = integer_to_list(StatusCode),
-    Stats = [{[MyApp, ".application.byStatusCode.", StatusStr], 1, "m"},
-             {[MyApp, ".", MyHost, ".byStatusCode.", StatusStr], 1, "m"},
-             {[MyApp, ".application.byOrgname.", OrgName], ReqTime, "h"},
-             {[MyApp, ".application.allRequests"], ReqTime, "h"},
-             {[MyApp, ".", MyHost, ".allRequests"], ReqTime, "h"},
-             {[MyApp, ".application.byRequestType.", ReqLabel, ".", ReqAction], ReqTime, "h"}
-            ],
+    Stats0 = [{[MyApp, ".application.byStatusCode.", StatusStr], 1, "m"},
+              {[MyApp, ".", MyHost, ".byStatusCode.", StatusStr], 1, "m"},
+              {[MyApp, ".application.allRequests"], ReqTime, "h"},
+              {[MyApp, ".", MyHost, ".allRequests"], ReqTime, "h"},
+              {[MyApp, ".application.byRequestType.", ReqLabel, ".", ReqAction], ReqTime, "h"}
+             ],
+    Stats = maybe_add_org(OrgName,
+                          {[MyApp, ".application.byOrgname.", OrgName], ReqTime, "h"},
+                          Stats0),
     UpAggregates = dict:to_list(aggregate_by_prefix(Metrics, Prefixes)),
     Upstreams = upstreams_by_prefix(Metrics, Prefixes),
     UpstreamStats =  [ {[MyApp, ".upstreamRequests.", Upstream], CTime#ctimer.time, "h"}
@@ -583,3 +585,16 @@ as_bin(X) when is_list(X) ->
     iolist_to_binary(X);
 as_bin(X) when is_binary(X) ->
     X.
+
+atom_or_bin(X) when is_atom(X);
+                    is_binary(X) ->
+    X;
+atom_or_bin(X) ->
+    as_bin(X).
+
+%% Append `Data' to `List' if `OrgName' is a binary. Otherwise, return `List'. This allows
+%% us to ignore org-specific metrics when org name is not provided.
+maybe_add_org(OrgName, Data, List) when is_binary(OrgName) ->
+    [Data | List];
+maybe_add_org(_, _, List) ->
+    List.
