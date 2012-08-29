@@ -250,7 +250,7 @@ init(Config) ->
                    my_host = hostname(),
                    request_label = as_bin(?gv(request_label, Config)),
                    request_action = as_bin(?gv(request_action, Config)),
-                   org_name = as_bin(?gv(org_name, Config)),
+                   org_name = atom_or_bin(?gv(org_name, Config)),
                    request_id = as_bin(?gv(request_id, Config)),
                    metrics = dict:new(),
                    upstream_prefixes = UpstreamPrefixes},
@@ -569,6 +569,12 @@ as_bin(X) when is_list(X) ->
     iolist_to_binary(X);
 as_bin(X) when is_binary(X) ->
     X.
+
+atom_or_bin(X) when is_atom(X);
+                    is_binary(X) ->
+    X;
+atom_or_bin(X) ->
+    as_bin(X).
 
 %% Append `Data' to `List' if `OrgName' is a binary. Otherwise, return `List'. This allows
 %% us to ignore org-specific metrics when org name is not provided.
