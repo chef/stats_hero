@@ -126,7 +126,7 @@ stats_hero_integration_test_() ->
 
                {"udp is captured",
                 fun() ->
-                        {MsgCount, Msg} = capture_udp:read(),
+                        {_MsgCount, Msg} = capture_udp:read(),
                         [GotStart, GotEnd] = [ parse_shp(M) || M <- Msg ],
                         ExpectStart = 
                             [{<<"test_hero.application.byOrgname.orginc">>,<<"1">>,<<"m">>},
@@ -138,9 +138,9 @@ stats_hero_integration_test_() ->
                         %% actual timing data, but can verify labels
                         %% and types.
                         ExpectEnd = 
-                            [{<<"test_hero.application.byStatusCode.200">>,<<"1">>,<<"m">>},
+                            [{<<"test_hero.application.byOrgname.orginc">>,<<"109">>,<<"h">>},
+                             {<<"test_hero.application.byStatusCode.200">>,<<"1">>,<<"m">>},
                              {<<"test_hero.test-host.byStatusCode.200">>,<<"1">>,<<"m">>},
-                             {<<"test_hero.application.byOrgname.orginc">>,<<"109">>,<<"h">>},
                              {<<"test_hero.application.allRequests">>,<<"109">>,<<"h">>},
                              {<<"test_hero.test-host.allRequests">>,<<"109">>,<<"h">>},
                              {<<"test_hero.application.byRequestType.nodes.PUT">>,<<"109">>,<<"h">>},
