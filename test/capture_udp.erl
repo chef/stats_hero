@@ -8,6 +8,7 @@
 -export([peek/0,
          read/0,
          start_link/1,
+         stop/0,
          what_port/0]).
 
 %% ------------------------------------------------------------------
@@ -33,6 +34,9 @@
 %% discover using {@link capture_udp:what_port/0}.
 start_link(Port) ->
     gen_server:start_link({local, ?SERVER}, ?MODULE, Port, []).
+
+stop() ->
+    gen_server:call(?SERVER, stop).
 
 -spec what_port() -> {ok, non_neg_integer()}.
 %% @doc Return the port this server is listening on.
@@ -70,6 +74,8 @@ handle_call(read, _From, #state{msg_count = Count, buffer = Buffer}=State) ->
     {reply, {Count, lists:reverse(Buffer)}, State#state{msg_count = 0, buffer = []}};
 handle_call(what_port, _From, #state{socket = Sock}=State) ->
     {reply, inet:port(Sock), State};
+handle_call(stop, _From, State) ->
+    {stop, normal, ok, State};
 handle_call(_Request, _From, State) ->
     {noreply, ok, State}.
 
