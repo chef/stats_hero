@@ -1,3 +1,20 @@
+%% Copyright 2012 Opscode, Inc. All Rights Reserved.
+%%
+%% This file is provided to you under the Apache License,
+%% Version 2.0 (the "License"); you may not use this file
+%% except in compliance with the License.  You may obtain
+%% a copy of the License at
+%%
+%%   http://www.apache.org/licenses/LICENSE-2.0
+%%
+%% Unless required by applicable law or agreed to in writing,
+%% software distributed under the License is distributed on an
+%% "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+%% KIND, either express or implied.  See the License for the
+%% specific language governing permissions and limitations
+%% under the License.
+%%
+
 -module(capture_udp).
 
 -behaviour(gen_server).
@@ -8,6 +25,7 @@
 -export([peek/0,
          read/0,
          start_link/1,
+         stop/0,
          what_port/0]).
 
 %% ------------------------------------------------------------------
@@ -33,6 +51,9 @@
 %% discover using {@link capture_udp:what_port/0}.
 start_link(Port) ->
     gen_server:start_link({local, ?SERVER}, ?MODULE, Port, []).
+
+stop() ->
+    gen_server:call(?SERVER, stop).
 
 -spec what_port() -> {ok, non_neg_integer()}.
 %% @doc Return the port this server is listening on.
@@ -70,6 +91,8 @@ handle_call(read, _From, #state{msg_count = Count, buffer = Buffer}=State) ->
     {reply, {Count, lists:reverse(Buffer)}, State#state{msg_count = 0, buffer = []}};
 handle_call(what_port, _From, #state{socket = Sock}=State) ->
     {reply, inet:port(Sock), State};
+handle_call(stop, _From, State) ->
+    {stop, normal, ok, State};
 handle_call(_Request, _From, State) ->
     {noreply, ok, State}.
 

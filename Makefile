@@ -1,6 +1,6 @@
 DEPS = deps/meck
 
-all: compile eunit
+all: compile eunit dialyzer
 
 clean:
 	@rebar skip_deps=true clean
@@ -14,7 +14,6 @@ distclean:
 
 compile: $(DEPS)
 	@rebar compile
-	@dialyzer -Wrace_conditions -Wunderspecs -r ebin
 
 dialyzer:
 	@dialyzer -Wrace_conditions -Wunderspecs -r ebin

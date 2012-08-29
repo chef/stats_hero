@@ -1,3 +1,20 @@
+%% Copyright 2012 Opscode, Inc. All Rights Reserved.
+%%
+%% This file is provided to you under the Apache License,
+%% Version 2.0 (the "License"); you may not use this file
+%% except in compliance with the License.  You may obtain
+%% a copy of the License at
+%%
+%%   http://www.apache.org/licenses/LICENSE-2.0
+%%
+%% Unless required by applicable law or agreed to in writing,
+%% software distributed under the License is distributed on an
+%% "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+%% KIND, either express or implied.  See the License for the
+%% specific language governing permissions and limitations
+%% under the License.
+%%
+
 -module(stats_hero_test).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -20,54 +37,65 @@ call_for_type({time, X}) ->
 expand_label(K) ->
     [<<K/binary, "_time">>, <<K/binary, "_count">>].
 
+setup_stats_hero(Config) ->
+    meck:new(net_adm, [passthrough, unstick]),
+    meck:expect(net_adm, localhost, fun() -> "test-host" end),
+    error_logger:tty(false),
+    capture_udp:start_link(0),
+    {ok, Port} = capture_udp:what_port(),
+    %% setup required app environment
+    application:set_env(stats_hero, estatsd_host, "localhost"),
+    application:set_env(stats_hero, estatsd_port, Port),
+    application:set_env(stats_hero, udp_socket_pool_size, 5),
+    application:start(stats_hero),
+    error_logger:tty(true),
+
+    stats_hero_worker_sup:new_worker(Config),
+
+    %% Each call is {Label, NumCalls, {time, X} | {sleep, X}}
+    Calls = [{<<"rdbms.nodes.fetch">>, 1, {sleep, 100}},
+             {<<"rdbms.nodes.fetch">>, 9, {time, 100}},
+             {<<"rdbms.nodes.put">>, 1, {time, 200}},
+             {<<"authz.nodes.read">>, 1, {time, 100}}],
+
+    ReqId = proplists:get_value(request_id, Config),
+    [ ?REPEAT(stats_hero:ctime(ReqId, Label, call_for_type(Type)), N)
+      || {Label, N, Type} <- Calls ],
+
+    stats_hero:alog(ReqId, <<"my_log">>, <<"hello, ">>),
+    stats_hero:alog(ReqId, <<"my_log">>, <<"world.">>),
+
+    stats_hero:report_metrics(ReqId, 200),
+
+    {ReqId, Config, Calls}.
+
+cleanup_stats_hero() ->
+    meck:unload(),
+    error_logger:tty(false),
+    application:stop(stats_hero),
+    capture_udp:stop(),
+    error_logger:tty(true).
+
 stats_hero_integration_test_() ->
     {setup,
      fun() ->
-             meck:new(net_adm, [passthrough, unstick]),
-             meck:expect(net_adm, localhost, fun() -> "test-host" end),
-             capture_udp:start_link(0),
-             {ok, Port} = capture_udp:what_port(),
-             %% setup required app environment
-             application:set_env(stats_hero, estatsd_host, "localhost"),
-             application:set_env(stats_hero, estatsd_port, Port),
-             application:set_env(stats_hero, udp_socket_pool_size, 5),
-             application:start(stats_hero),
-              ReqId = <<"req_id_123">>,
-              Config = [{request_label, <<"nodes">>},
-                        {request_action, <<"PUT">>},
-                        {upstream_prefixes, ?UPSTREAMS},
-                        {my_app, <<"test_hero">>},
-                        {org_name, <<"orginc">>},
-                        {request_id, ReqId}],
-              stats_hero_worker_sup:new_worker(Config),
-              
-              %% Each call is {Label, NumCalls, {time, X} | {sleep, X}}
-              Calls = [{<<"rdbms.nodes.fetch">>, 1, {sleep, 100}},
-                       {<<"rdbms.nodes.fetch">>, 9, {time, 100}},
-                       {<<"rdbms.nodes.put">>, 1, {time, 200}},
-                       {<<"authz.nodes.read">>, 1, {time, 100}}],
-
-              [ ?REPEAT(stats_hero:ctime(ReqId, Label, call_for_type(Type)), N)
-                || {Label, N, Type} <- Calls ],
-
-             stats_hero:alog(ReqId, <<"my_log">>, <<"hello, ">>),
-             stats_hero:alog(ReqId, <<"my_log">>, <<"world.">>),
-
-             stats_hero:report_metrics(ReqId, 200),
-
-             {ReqId, Config, Calls}
+             ReqId = <<"req_id_123">>,
+             Config = [{request_label, <<"nodes">>},
+                       {request_action, <<"PUT">>},
+                       {upstream_prefixes, ?UPSTREAMS},
+                       {my_app, <<"test_hero">>},
+                       {org_name, <<"orginc">>},
+                       {request_id, ReqId}],
+             setup_stats_hero(Config)
      end,
-     fun(_X) ->
-             meck:unload(),
-             application:stop(stats_hero)
-     end,
+     fun(_X) -> cleanup_stats_hero() end,
      fun({ReqId, Config, Calls}) ->
-              [
-               {"stats_hero functions give not_found or [] for a bad request id",
-                fun() ->
-                        ?assertEqual(not_found,
-                                     stats_hero:ctime(<<"unknown">>, <<"a_label">>,
-                                                      {100, ms})),
+             [
+              {"stats_hero functions give not_found or [] for a bad request id",
+               fun() ->
+                       ?assertEqual(not_found,
+                                    stats_hero:ctime(<<"unknown">>, <<"a_label">>,
+                                                     {100, ms})),
 
                         ?assertEqual(not_found, stats_hero:stop_worker(<<"unknown">>)),
 
@@ -126,9 +154,9 @@ stats_hero_integration_test_() ->
 
                {"udp is captured",
                 fun() ->
-                        {MsgCount, Msg} = capture_udp:read(),
+                        {_MsgCount, Msg} = capture_udp:read(),
                         [GotStart, GotEnd] = [ parse_shp(M) || M <- Msg ],
-                        ExpectStart = 
+                        ExpectStart =
                             [{<<"test_hero.application.byOrgname.orginc">>,<<"1">>,<<"m">>},
                              {<<"test_hero.application.allRequests">>,<<"1">>,<<"m">>},
                              {<<"test_hero.test-host.allRequests">>,<<"1">>,<<"m">>},
@@ -138,9 +166,9 @@ stats_hero_integration_test_() ->
                         %% actual timing data, but can verify labels
                         %% and types.
                         ExpectEnd = 
-                            [{<<"test_hero.application.byStatusCode.200">>,<<"1">>,<<"m">>},
+                            [{<<"test_hero.application.byOrgname.orginc">>,<<"109">>,<<"h">>},
+                             {<<"test_hero.application.byStatusCode.200">>,<<"1">>,<<"m">>},
                              {<<"test_hero.test-host.byStatusCode.200">>,<<"1">>,<<"m">>},
-                             {<<"test_hero.application.byOrgname.orginc">>,<<"109">>,<<"h">>},
                              {<<"test_hero.application.allRequests">>,<<"109">>,<<"h">>},
                              {<<"test_hero.test-host.allRequests">>,<<"109">>,<<"h">>},
                              {<<"test_hero.application.byRequestType.nodes.PUT">>,<<"109">>,<<"h">>},
@@ -179,6 +207,33 @@ stats_hero_integration_test_() ->
      end
     }.
 
+stats_hero_no_org_integration_test_() ->
+    {setup,
+     fun() ->
+             ReqId = <<"req_id_123">>,
+              Config = [{request_label, <<"nodes">>},
+                        {request_action, <<"PUT">>},
+                        {upstream_prefixes, ?UPSTREAMS},
+                        {my_app, <<"test_hero">>},
+                        {org_name, unset},
+                        {request_id, ReqId}],
+             setup_stats_hero(Config)
+     end,
+     fun(_X) -> cleanup_stats_hero() end,
+     fun({_ReqId, _Config, _Calls}) ->
+             [
+              {"udp is captured",
+               fun() ->
+                       {_MsgCount, Msg} = capture_udp:read(),
+                       [GotStart] = [ parse_shp(M) || M <- Msg ],
+                       ExpectStart =
+                           [{<<"test_hero.application.allRequests">>,<<"1">>,<<"m">>},
+                            {<<"test_hero.test-host.allRequests">>,<<"1">>,<<"m">>},
+                            {<<"test_hero.application.byRequestType.nodes.PUT">>,<<"1">>,<<"m">>}],
+                       ?assertEqual(GotStart, ExpectStart)
+               end}
+             ]
+     end}.
 
 %% El-Cheapo Stats Hero Protocol parsing for test verification
 parse_shp(Msg) ->
