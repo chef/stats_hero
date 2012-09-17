@@ -263,16 +263,18 @@ label(BadPrefix, Fun) ->
 %%
 
 init(Config) ->
-    UpstreamPrefixes = ?gv(upstream_prefixes, Config),
+    {ok, UpstreamPrefixes} = application:get_env(stats_hero, upstream_prefixes),
+    {ok, AppName} = application:get_env(stats_hero, my_app),
+    {ok,LabelFun} = application:get_env(stats_hero, label_fun),
     State = #state{start_time = os:timestamp(),
-                   my_app = as_bin(?gv(my_app, Config)),
+                   my_app = AppName,
                    my_host = hostname(),
                    request_label = as_bin(?gv(request_label, Config)),
                    request_action = as_bin(?gv(request_action, Config)),
                    org_name = atom_or_bin(?gv(org_name, Config)),
                    request_id = as_bin(?gv(request_id, Config)),
                    metrics = dict:new(),
-                   label_fun = ?gv(label_fun, Config),
+                   label_fun = LabelFun,
                    upstream_prefixes = UpstreamPrefixes},
     send_start_metrics(State),
     %% register this worker with the monitor who will make us findable by ReqId and will
