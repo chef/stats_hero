@@ -79,6 +79,7 @@
           org_name               :: binary(),
           request_id             :: binary(),
           metrics = dict:new()   :: dict(),
+          label_fun              :: {atom(), atom()},
           upstream_prefixes = [] :: [binary()]
          }).
 
@@ -269,6 +270,7 @@ init(Config) ->
                    org_name = atom_or_bin(?gv(org_name, Config)),
                    request_id = as_bin(?gv(request_id, Config)),
                    metrics = dict:new(),
+                   label_fun = ?gv(label_fun, Config),
                    upstream_prefixes = UpstreamPrefixes},
     send_start_metrics(State),
     %% register this worker with the monitor who will make us findable by ReqId and will
@@ -293,10 +295,11 @@ handle_call({read_alog, Label}, _From, #state{metrics=Metrics}=State) ->
 handle_call(_, _From, State) ->
     {reply, unhandled, State}.
 
-handle_cast({ctime_time, Label, {Time, Unit}}, #state{metrics=Metrics}=State) ->
+handle_cast({ctime_time, Label, {Time, Unit}}, #state{metrics=Metrics, label_fun=LabelFun}=State) ->
     CTimer = fetch_ctimer(Label, Metrics),
     CTimer1 = update_ctimer(CTimer, {Time, Unit}),
-    State1 = State#state{metrics = store_ctimer(Label, CTimer1, Metrics)},
+    Label1 = maybe_label(Label, LabelFun),
+    State1 = State#state{metrics = store_ctimer(Label1, CTimer1, Metrics)},
     {noreply, State1};
 handle_cast({report_metrics, EndTime, StatusCode}, #state{start_time = StartTime}=State) ->
     ReqTime = timer:now_diff(EndTime, StartTime) div 1000,
@@ -324,6 +327,14 @@ code_change(_OldVsn, State, _Extra) ->
 %%
 %% private functions
 %%
+
+maybe_label(Label, _LabelFun) when is_binary(Label)->
+    Label;
+maybe_label(Label, LabelFun) ->
+    {Mod, Fun} = LabelFun,
+    Label1 = Mod:Fun(Label),
+    Label1.
+
 
 -spec worker_ctime(req_id(), binary(), timing()) -> not_found | ok.
 worker_ctime(ReqId, Label, {Time, Unit}) when Unit =:= ms; Unit =:= micros ->
