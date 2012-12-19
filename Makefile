@@ -16,7 +16,7 @@ compile: $(DEPS)
 	@rebar compile
 
 dialyzer:
-	@dialyzer -Wrace_conditions -Wunderspecs -r ebin
+	@dialyzer -Wunderspecs -r ebin
 
 $(DEPS):
 	@rebar get-deps
