@@ -243,6 +243,8 @@ label(chef_sql, Fun) ->
     label(rdbms, Fun);
 label(chef_authz, Fun) ->
     label(authz, Fun);
+label(oc_chef_authz, Fun) ->
+    label(authz, Fun);
 label(chef_solr, Fun) ->
     label(solr, Fun);
 label(Prefix, Fun) when Prefix =:= rdbms;
