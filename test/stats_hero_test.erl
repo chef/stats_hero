@@ -85,6 +85,7 @@ stats_hero_integration_test_() ->
                        {upstream_prefixes, ?UPSTREAMS},
                        {my_app, <<"test_hero">>},
                        {org_name, <<"orginc">>},
+                       {label_fun, {test_util, label}},
                        {request_id, ReqId}],
              setup_stats_hero(Config)
      end,
@@ -216,6 +217,7 @@ stats_hero_no_org_integration_test_() ->
                         {upstream_prefixes, ?UPSTREAMS},
                         {my_app, <<"test_hero">>},
                         {org_name, unset},
+                        {label_fun, {test_util, label}},
                         {request_id, ReqId}],
              setup_stats_hero(Config)
      end,
