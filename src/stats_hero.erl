@@ -49,7 +49,7 @@
          terminate/2,
          code_change/3]).
 
--type upstream() :: 'authz' | 'chef_authz' | 'chef_otto' | 'chef_solr' |
+-type upstream() :: 'authz' | 'chef_authz' | 'oc_chef_authz' | 'chef_otto' | 'chef_solr' |
                     'chef_sql' | 'couchdb' | 'rdbms' | 'solr'.
 
 -type req_id() :: binary().
