@@ -117,44 +117,48 @@ stats_hero_missing_required_config_test_() ->
 stats_hero_integration_test_() ->
     {setup,
      fun() ->
-             ReqId = <<"req_id_123">>,
              Config = [{request_label, <<"nodes">>},
                        {request_action, <<"PUT">>},
                        {upstream_prefixes, ?UPSTREAMS},
-                       {my_app, <<"test_hero">>},
+                       %% specify a config entry as a string to
+                       %% exercise conversion to binary.
+                       {my_app, "test_hero"},
                        {org_name, <<"orginc">>},
                        {label_fun, {test_util, label}},
-                       {request_id, ReqId}],
+                       {request_id, <<"req_id_123">>}],
              setup_stats_hero(Config)
      end,
      fun(_X) -> cleanup_stats_hero() end,
      fun({ReqId, Config, Calls}) ->
              [
-              {"stats_hero functions give not_found or [] for a bad request id",
+              {"stats_hero functions give not_found or [] for a bad request id", generator,
                fun() ->
-                       ?assertEqual(not_found,
-                                    stats_hero:ctime(<<"unknown">>, <<"a_label">>,
-                                                     {100, ms})),
+                       [
+                        ?_assertEqual(not_found,
+                                      stats_hero:ctime(<<"unknown">>, <<"a_label">>, {100, ms})),
 
-                        ?assertEqual(not_found, stats_hero:stop_worker(<<"unknown">>)),
+                        ?_assertEqual(not_found, stats_hero:stop_worker(<<"unknown">>)),
 
-                        APid = spawn(fun() -> ok end),
-                        ?assertEqual(not_found, stats_hero:clean_worker_data(APid)),
+                        ?_assertEqual(not_found, stats_hero:clean_worker_data(spawn(fun() -> ok end))),
 
-                        ?assertEqual(not_found, stats_hero:alog(<<"unknown">>,
-                                                                <<"a_label">>, <<"msg">>)),
-                        
-                        ?assertEqual([], stats_hero:snapshot(<<"unknown">>, all)),
+                        ?_assertEqual(not_found, stats_hero:alog(<<"unknown">>,
+                                                                 <<"a_label">>, <<"msg">>)),
 
-                        ?assertEqual(not_found,
-                                     stats_hero:report_metrics(<<"unknown">>, 404))
-                end},
+                        ?_assertEqual([], stats_hero:snapshot(<<"unknown">>, all)),
 
-               {"read_alog retrieves a log message",
-                fun() ->
-                        ?assertEqual([<<"hello, ">>,<<"world.">>],
-                                     stats_hero:read_alog(ReqId, <<"my_log">>))
-                end},
+                        ?_assertEqual(not_found,
+                                      stats_hero:report_metrics(<<"unknown">>, 404)),
+
+                        ?_assertEqual(not_found,
+                                      stats_hero:read_alog(<<"unknown">>, <<"my_log">>))
+                       ]
+               end},
+
+              {"read_alog retrieves a log message",
+               fun() ->
+                       ?assertEqual([<<"hello, ">>,<<"world.">>],
+                                    stats_hero:read_alog(ReqId, <<"my_log">>))
+               end},
 
                {"snapshot returns the right set of keys", generator,
                 fun() ->
