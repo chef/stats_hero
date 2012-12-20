@@ -18,6 +18,7 @@
 -module(stats_hero_test).
 
 -include_lib("eunit/include/eunit.hrl").
+-include_lib("stats_hero/include/stats_hero.hrl").
 
 -define(UPSTREAMS, [<<"rdbms">>, <<"couchdb">>, <<"authz">>]).
 
@@ -52,7 +53,7 @@ setup_stats_hero(Config) ->
     application:start(stats_hero),
     error_logger:tty(true),
 
-    stats_hero_worker_sup:new_worker(Config),
+    {ok, _} = stats_hero_worker_sup:new_worker(Config),
 
     %% Each call is {Label, NumCalls, {time, X} | {sleep, X}}
     Calls = [{<<"rdbms.nodes.fetch">>, 1, {sleep, 100}},
@@ -289,6 +290,66 @@ stats_hero_no_org_integration_test_() ->
                             {<<"test_hero.test-host.allRequests">>,<<"1">>,<<"m">>},
                             {<<"test_hero.application.byRequestType.nodes.PUT">>,<<"1">>,<<"m">>}],
                        ?assertEqual(GotStart, ExpectStart)
+               end}
+             ]
+     end}.
+
+stats_hero_label_fun_test_() ->
+    {setup,
+     fun() ->
+             ReqId = <<"req_id_456">>,
+             Config = [{request_label, <<"nodes">>},
+                       {request_action, <<"PUT">>},
+                       {upstream_prefixes, [<<"stats_hero_testing">>]},
+                       {my_app, <<"test_hero">>},
+                       {org_name, unset},
+                       {label_fun, {test_util, label}},
+                       {request_id, ReqId}],
+             meck:new(net_adm, [passthrough, unstick]),
+             meck:expect(net_adm, localhost, fun() -> "test-host" end),
+             error_logger:tty(false),
+             capture_udp:start_link(0),
+             {ok, Port} = capture_udp:what_port(),
+             setup_stats_hero_env(Port),
+             application:start(stats_hero),
+             error_logger:tty(true),
+             {ok, WorkerPid} = stats_hero_worker_sup:new_worker(Config),
+             {ReqId, Config, WorkerPid}
+     end,
+     fun(_) -> cleanup_stats_hero() end,
+     fun({ReqId, _Config, WorkerPid}) ->
+             [{"calls can be made using label fun style",
+               fun() ->
+                       ?SH_TIME(ReqId, test_util, do_work, (100)),
+                       ?SH_TIME(ReqId, test_util, do_work, (100))
+               end},
+
+              {"snapshot gives running req_time",
+               fun() ->
+                       S1 = stats_hero:snapshot(ReqId, all),
+                       timer:sleep(50),
+                       S2 = stats_hero:snapshot(ReqId, all),
+                       timer:sleep(50),
+                       S3 = stats_hero:snapshot(ReqId, all),
+                       ReqTimes = [ proplists:get_value(<<"req_time">>, PL)
+                                    || PL <- [S1, S2, S3] ],
+                       %% no dups and in time of call order
+                       ?assertEqual(ReqTimes, lists:usort(ReqTimes))
+               end},
+
+              {"pedantic message handling tests for coverage",
+               fun() ->
+                       stats_hero:code_change(a, b, c),
+                       %% cast of unknown msg
+                       gen_server:cast(WorkerPid, should_be_ignored),
+                       ?assertEqual(unhandled, gen_server:call(WorkerPid, should_be_ignored))
+               end},
+
+              {"snapshot aggregates using prefix and labels via label fun",
+               fun() ->
+                       Snap = stats_hero:snapshot(ReqId, agg),
+                       ?assert(200 =< proplists:get_value(<<"stats_hero_testing_time">>, Snap)),
+                       ?assertEqual(2, proplists:get_value(<<"stats_hero_testing_count">>, Snap))
                end}
              ]
      end}.
