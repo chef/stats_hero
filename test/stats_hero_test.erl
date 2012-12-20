@@ -93,7 +93,8 @@ stats_hero_missing_required_config_test_() ->
               {request_action, <<"PUT">>},
               {upstream_prefixes, ?UPSTREAMS},
               {my_app, <<"test_hero">>},
-              {org_name, <<"orginc">>},
+              %% again purposeful use of string to test conversion
+              {org_name, "orginc"},
               {label_fun, {test_util, label}},
               {request_id, <<"req_id_123">>}]
      end,
