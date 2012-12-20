@@ -505,9 +505,8 @@ make_log_tuples({no_agg, _}, ReqTime, Metrics) ->
 make_log_tuples({agg, Prefixes}, ReqTime, Metrics) ->
     Ans = dict:fold(fun(Label, #ctimer{}=CTimer, Acc) ->
                             [A, B] = ctimer_to_list(Label, CTimer),
-                            [A, B | Acc];
-                       (_, _, Acc) -> Acc end, [],
-                    aggregate_by_prefix(Metrics, Prefixes)),
+                            [A, B | Acc]
+                    end, [], aggregate_by_prefix(Metrics, Prefixes)),
     [{<<"req_time">>, ReqTime}| Ans];
 make_log_tuples({all, Prefixes}, ReqTime, Metrics) ->
     [{<<"req_time">>, _} | Agg] = make_log_tuples({agg, Prefixes}, ReqTime, Metrics),
