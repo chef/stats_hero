@@ -236,20 +236,30 @@ start_link(Config) ->
 
 init(Config) ->
     State = #state{start_time = os:timestamp(),
-                   my_app = as_bin(?gv(my_app, Config)),
+                   my_app = as_bin(gv(my_app, Config)),
                    my_host = hostname(),
-                   request_label = as_bin(?gv(request_label, Config)),
-                   request_action = as_bin(?gv(request_action, Config)),
-                   org_name = atom_or_bin(?gv(org_name, Config)),
-                   request_id = as_bin(?gv(request_id, Config)),
+                   request_label = as_bin(gv(request_label, Config)),
+                   request_action = as_bin(gv(request_action, Config)),
+                   org_name = atom_or_bin(gv(org_name, Config)),
+                   request_id = as_bin(gv(request_id, Config)),
                    metrics = dict:new(),
-                   label_fun = ?gv(label_fun, Config),
-                   upstream_prefixes = ?gv(upstream_prefixes, Config)},
+                   label_fun = gv(label_fun, Config),
+                   upstream_prefixes = gv(upstream_prefixes, Config)},
     send_start_metrics(State),
     %% register this worker with the monitor who will make us findable by ReqId and will
     %% clean up the mapping when we exit.
     register(State#state.request_id),
     {ok, State}.
+
+%% helper function to extract values from a proplist. It is an error if the key is not
+%% found.
+gv(Key, PL) ->
+    case lists:keyfind(Key, 1, PL) of
+        {Key, Value} ->
+            Value;
+        false ->
+            error({required_key_missing, Key, PL})
+    end.
 
 handle_call({snapshot, Type, SnapTime}, _From,
             #state{start_time = StartTime,

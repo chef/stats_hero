@@ -37,16 +37,18 @@ call_for_type({time, X}) ->
 expand_label(K) ->
     [<<K/binary, "_time">>, <<K/binary, "_count">>].
 
+setup_stats_hero_env(Port) ->
+    application:set_env(stats_hero, estatsd_host, "localhost"),
+    application:set_env(stats_hero, estatsd_port, Port),
+    application:set_env(stats_hero, udp_socket_pool_size, 5).
+
 setup_stats_hero(Config) ->
     meck:new(net_adm, [passthrough, unstick]),
     meck:expect(net_adm, localhost, fun() -> "test-host" end),
     error_logger:tty(false),
     capture_udp:start_link(0),
     {ok, Port} = capture_udp:what_port(),
-    %% setup required app environment
-    application:set_env(stats_hero, estatsd_host, "localhost"),
-    application:set_env(stats_hero, estatsd_port, Port),
-    application:set_env(stats_hero, udp_socket_pool_size, 5),
+    setup_stats_hero_env(Port),
     application:start(stats_hero),
     error_logger:tty(true),
 
@@ -75,6 +77,42 @@ cleanup_stats_hero() ->
     application:stop(stats_hero),
     capture_udp:stop(),
     error_logger:tty(true).
+
+stats_hero_missing_required_config_test_() ->
+    %% Ensure that we get readable error messages if Config proplist
+    %% is missing a required key.
+    {setup,
+     fun() ->
+             Port = 3888,
+             setup_stats_hero_env(Port),
+             error_logger:tty(false),
+             application:start(stats_hero),
+             error_logger:tty(true),
+             %% pass a complete config to the tests, we'll delete keys from it for testing.
+             [{request_label, <<"nodes">>},
+              {request_action, <<"PUT">>},
+              {upstream_prefixes, ?UPSTREAMS},
+              {my_app, <<"test_hero">>},
+              {org_name, <<"orginc">>},
+              {label_fun, {test_util, label}},
+              {request_id, <<"req_id_123">>}]
+     end,
+     fun(_) ->
+             error_logger:tty(false),
+             application:stop(stats_hero),
+             error_logger:tty(true)
+     end,
+     fun(FullConfig) ->
+             %% These are the required keys.
+             Keys = [my_app, request_label, request_action, org_name, request_id,
+                     upstream_prefixes],
+             [ {"missing " ++ atom_to_list(Key),
+                fun() ->
+                        NoKey = proplists:delete(Key, FullConfig),
+                       ?assertMatch({error, {{required_key_missing, Key, _}, _}},
+                                    stats_hero_worker_sup:new_worker(NoKey))
+                end} || Key <- Keys ]
+     end}.
 
 stats_hero_integration_test_() ->
     {setup,
