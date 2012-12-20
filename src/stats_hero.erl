@@ -178,7 +178,7 @@ alog(ReqId, Label, Msg) ->
 -spec snapshot(pid() | binary(), agg | no_agg | all) -> [{binary(), integer()}].
 %% @doc Return a snapshot of currently tracked metrics. The return value is a proplist with
 %% binary keys and integer values. If {@link stats_hero:report_metrics/2} has already been
-%% called, the request time recorded at the time of that call is returns in the
+%% called, the request time recorded at the time of that call is returned in the
 %% `<<"req_time">>' key. Otherwise, the request time thus far is returned, but not stored.
 %%
 %% This function is useful for obtaining metrics related to upstream service calls for
@@ -287,7 +287,7 @@ handle_cast({ctime_time, Label, {Time, Unit}}, #state{metrics=Metrics, label_fun
 handle_cast({report_metrics, EndTime, StatusCode}, #state{start_time = StartTime}=State) ->
     ReqTime = timer:now_diff(EndTime, StartTime) div 1000,
     do_report_metrics(ReqTime, StatusCode, State),
-    {noreply, State};
+    {noreply, State#state{end_time=EndTime}};
 handle_cast({alog, Label, Msg}, #state{metrics=Metrics, label_fun=LabelFun}=State) ->
     Label1 = maybe_label(Label, LabelFun),
     ALog = fetch_alog(Label1, Metrics),

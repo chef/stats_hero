@@ -195,6 +195,16 @@ stats_hero_integration_test_() ->
                           || {Key, Count} <- dict:to_list(CallCounts) ]
                 end},
 
+              {"snapshot after report_metrics always returns same req_time",
+               fun() ->
+                       S1 = stats_hero:snapshot(ReqId, all),
+                       ReqTime = proplists:get_value(<<"req_time">>, S1),
+                       timer:sleep(100),
+                       [S2, S3] = [ stats_hero:snapshot(ReqId, all) || _I <- [1, 2] ],
+                       ?assertEqual(ReqTime, proplists:get_value(<<"req_time">>, S2)),
+                       ?assertEqual(ReqTime, proplists:get_value(<<"req_time">>, S3))
+               end},
+
                {"udp is captured",
                 fun() ->
                         {_MsgCount, Msg} = capture_udp:read(),
