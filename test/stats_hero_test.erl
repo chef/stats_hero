@@ -58,7 +58,9 @@ setup_stats_hero(Config) ->
     Calls = [{<<"rdbms.nodes.fetch">>, 1, {sleep, 100}},
              {<<"rdbms.nodes.fetch">>, 9, {time, 100}},
              {<<"rdbms.nodes.put">>, 1, {time, 200}},
-             {<<"authz.nodes.read">>, 1, {time, 100}}],
+             {<<"authz.nodes.read">>, 1, {time, 100}},
+             %% add a call that won't be matched to exercise that edge case
+             {<<"no-such-prefix.who.what.where">>, 1, {time, 100}}],
 
     ReqId = proplists:get_value(request_id, Config),
     [ ?REPEAT(stats_hero:ctime(ReqId, Label, call_for_type(Type)), N)
@@ -198,7 +200,7 @@ stats_hero_integration_test_() ->
 
               {"snapshot after report_metrics always returns same req_time",
                fun() ->
-                       S1 = stats_hero:snapshot(ReqId, all),
+                       S1 = stats_hero:snapshot(ReqId, agg),
                        ReqTime = proplists:get_value(<<"req_time">>, S1),
                        timer:sleep(100),
                        [S2, S3] = [ stats_hero:snapshot(ReqId, all) || _I <- [1, 2] ],
