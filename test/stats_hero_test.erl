@@ -250,7 +250,8 @@ stats_hero_integration_test_() ->
                         ?assertEqual(1, stats_hero_monitor:registered_count()),
                         Config1 = lists:keyreplace(request_id, 1, Config,
                                                    {request_id, <<"temp1">>}),
-                        stats_hero_worker_sup:new_worker(Config1),
+                        {ok, WorkerPid} =  stats_hero_worker_sup:new_worker(Config1),
+                        WorkerPid ! test_info_msg_handled,
                         ?assertEqual(2, stats_hero_monitor:registered_count()),
                         %% calling stop worker is async, so we sleep
                         %% to wait for the monitor to receive and
