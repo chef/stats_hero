@@ -57,9 +57,6 @@
 %% Global ETS table used by stats_hero to keep track of ReqId <=> Pid mappings.
 -define(SH_WORKER_TABLE, stats_hero_table).
 
-%% Helper macro for extracting values from proplists; crashes if key not found
--define(gv(Key, PL), element(2, lists:keyfind(Key, 1, PL))).
-
 -include("stats_hero.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
