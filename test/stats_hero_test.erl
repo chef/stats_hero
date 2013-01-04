@@ -18,6 +18,7 @@
 -module(stats_hero_test).
 
 -include_lib("eunit/include/eunit.hrl").
+-include_lib("stats_hero/include/stats_hero.hrl").
 
 -define(UPSTREAMS, [<<"rdbms">>, <<"couchdb">>, <<"authz">>]).
 
@@ -37,26 +38,30 @@ call_for_type({time, X}) ->
 expand_label(K) ->
     [<<K/binary, "_time">>, <<K/binary, "_count">>].
 
+setup_stats_hero_env(Port) ->
+    application:set_env(stats_hero, estatsd_host, "localhost"),
+    application:set_env(stats_hero, estatsd_port, Port),
+    application:set_env(stats_hero, udp_socket_pool_size, 5).
+
 setup_stats_hero(Config) ->
     meck:new(net_adm, [passthrough, unstick]),
     meck:expect(net_adm, localhost, fun() -> "test-host" end),
     error_logger:tty(false),
     capture_udp:start_link(0),
     {ok, Port} = capture_udp:what_port(),
-    %% setup required app environment
-    application:set_env(stats_hero, estatsd_host, "localhost"),
-    application:set_env(stats_hero, estatsd_port, Port),
-    application:set_env(stats_hero, udp_socket_pool_size, 5),
+    setup_stats_hero_env(Port),
     application:start(stats_hero),
     error_logger:tty(true),
 
-    stats_hero_worker_sup:new_worker(Config),
+    {ok, _} = stats_hero_worker_sup:new_worker(Config),
 
     %% Each call is {Label, NumCalls, {time, X} | {sleep, X}}
     Calls = [{<<"rdbms.nodes.fetch">>, 1, {sleep, 100}},
              {<<"rdbms.nodes.fetch">>, 9, {time, 100}},
              {<<"rdbms.nodes.put">>, 1, {time, 200}},
-             {<<"authz.nodes.read">>, 1, {time, 100}}],
+             {<<"authz.nodes.read">>, 1, {time, 100}},
+             %% add a call that won't be matched to exercise that edge case
+             {<<"no-such-prefix.who.what.where">>, 1, {time, 100}}],
 
     ReqId = proplists:get_value(request_id, Config),
     [ ?REPEAT(stats_hero:ctime(ReqId, Label, call_for_type(Type)), N)
@@ -76,46 +81,88 @@ cleanup_stats_hero() ->
     capture_udp:stop(),
     error_logger:tty(true).
 
+stats_hero_missing_required_config_test_() ->
+    %% Ensure that we get readable error messages if Config proplist
+    %% is missing a required key.
+    {setup,
+     fun() ->
+             Port = 3888,
+             setup_stats_hero_env(Port),
+             error_logger:tty(false),
+             application:start(stats_hero),
+             error_logger:tty(true),
+             %% pass a complete config to the tests, we'll delete keys from it for testing.
+             [{request_label, <<"nodes">>},
+              {request_action, <<"PUT">>},
+              {upstream_prefixes, ?UPSTREAMS},
+              {my_app, <<"test_hero">>},
+              %% again purposeful use of string to test conversion
+              {org_name, "orginc"},
+              {label_fun, {test_util, label}},
+              {request_id, <<"req_id_123">>}]
+     end,
+     fun(_) ->
+             error_logger:tty(false),
+             application:stop(stats_hero),
+             error_logger:tty(true)
+     end,
+     fun(FullConfig) ->
+             %% These are the required keys.
+             Keys = [my_app, request_label, request_action, org_name, request_id,
+                     upstream_prefixes],
+             [ {"missing " ++ atom_to_list(Key),
+                fun() ->
+                        NoKey = proplists:delete(Key, FullConfig),
+                       ?assertMatch({error, {{required_key_missing, Key, _}, _}},
+                                    stats_hero_worker_sup:new_worker(NoKey))
+                end} || Key <- Keys ]
+     end}.
+
 stats_hero_integration_test_() ->
     {setup,
      fun() ->
-             ReqId = <<"req_id_123">>,
              Config = [{request_label, <<"nodes">>},
                        {request_action, <<"PUT">>},
                        {upstream_prefixes, ?UPSTREAMS},
-                       {my_app, <<"test_hero">>},
+                       %% specify a config entry as a string to
+                       %% exercise conversion to binary.
+                       {my_app, "test_hero"},
                        {org_name, <<"orginc">>},
-                       {request_id, ReqId}],
+                       {label_fun, {test_util, label}},
+                       {request_id, <<"req_id_123">>}],
              setup_stats_hero(Config)
      end,
      fun(_X) -> cleanup_stats_hero() end,
      fun({ReqId, Config, Calls}) ->
              [
-              {"stats_hero functions give not_found or [] for a bad request id",
+              {"stats_hero functions give not_found or [] for a bad request id", generator,
                fun() ->
-                       ?assertEqual(not_found,
-                                    stats_hero:ctime(<<"unknown">>, <<"a_label">>,
-                                                     {100, ms})),
+                       [
+                        ?_assertEqual(not_found,
+                                      stats_hero:ctime(<<"unknown">>, <<"a_label">>, {100, ms})),
 
-                        ?assertEqual(not_found, stats_hero:stop_worker(<<"unknown">>)),
+                        ?_assertEqual(not_found, stats_hero:stop_worker(<<"unknown">>)),
 
-                        APid = spawn(fun() -> ok end),
-                        ?assertEqual(not_found, stats_hero:clean_worker_data(APid)),
+                        ?_assertEqual(not_found, stats_hero:clean_worker_data(spawn(fun() -> ok end))),
 
-                        ?assertEqual(not_found, stats_hero:alog(<<"unknown">>,
-                                                                <<"a_label">>, <<"msg">>)),
-                        
-                        ?assertEqual([], stats_hero:snapshot(<<"unknown">>, all)),
+                        ?_assertEqual(not_found, stats_hero:alog(<<"unknown">>,
+                                                                 <<"a_label">>, <<"msg">>)),
 
-                        ?assertEqual(not_found,
-                                     stats_hero:report_metrics(<<"unknown">>, 404))
-                end},
+                        ?_assertEqual([], stats_hero:snapshot(<<"unknown">>, all)),
 
-               {"read_alog retrieves a log message",
-                fun() ->
-                        ?assertEqual([<<"hello, ">>,<<"world.">>],
-                                     stats_hero:read_alog(ReqId, <<"my_log">>))
-                end},
+                        ?_assertEqual(not_found,
+                                      stats_hero:report_metrics(<<"unknown">>, 404)),
+
+                        ?_assertEqual(not_found,
+                                      stats_hero:read_alog(<<"unknown">>, <<"my_log">>))
+                       ]
+               end},
+
+              {"read_alog retrieves a log message",
+               fun() ->
+                       ?assertEqual([<<"hello, ">>,<<"world.">>],
+                                    stats_hero:read_alog(ReqId, <<"my_log">>))
+               end},
 
                {"snapshot returns the right set of keys", generator,
                 fun() ->
@@ -151,6 +198,16 @@ stats_hero_integration_test_() ->
                         [ ?_assertEqual({Key, Count}, {Key, proplists:get_value(Key, Snapshot)})
                           || {Key, Count} <- dict:to_list(CallCounts) ]
                 end},
+
+              {"snapshot after report_metrics always returns same req_time",
+               fun() ->
+                       S1 = stats_hero:snapshot(ReqId, agg),
+                       ReqTime = proplists:get_value(<<"req_time">>, S1),
+                       timer:sleep(100),
+                       [S2, S3] = [ stats_hero:snapshot(ReqId, all) || _I <- [1, 2] ],
+                       ?assertEqual(ReqTime, proplists:get_value(<<"req_time">>, S2)),
+                       ?assertEqual(ReqTime, proplists:get_value(<<"req_time">>, S3))
+               end},
 
                {"udp is captured",
                 fun() ->
@@ -194,7 +251,8 @@ stats_hero_integration_test_() ->
                         ?assertEqual(1, stats_hero_monitor:registered_count()),
                         Config1 = lists:keyreplace(request_id, 1, Config,
                                                    {request_id, <<"temp1">>}),
-                        stats_hero_worker_sup:new_worker(Config1),
+                        {ok, WorkerPid} =  stats_hero_worker_sup:new_worker(Config1),
+                        WorkerPid ! test_info_msg_handled,
                         ?assertEqual(2, stats_hero_monitor:registered_count()),
                         %% calling stop worker is async, so we sleep
                         %% to wait for the monitor to receive and
@@ -216,6 +274,7 @@ stats_hero_no_org_integration_test_() ->
                         {upstream_prefixes, ?UPSTREAMS},
                         {my_app, <<"test_hero">>},
                         {org_name, unset},
+                        {label_fun, {test_util, label}},
                         {request_id, ReqId}],
              setup_stats_hero(Config)
      end,
@@ -231,6 +290,66 @@ stats_hero_no_org_integration_test_() ->
                             {<<"test_hero.test-host.allRequests">>,<<"1">>,<<"m">>},
                             {<<"test_hero.application.byRequestType.nodes.PUT">>,<<"1">>,<<"m">>}],
                        ?assertEqual(GotStart, ExpectStart)
+               end}
+             ]
+     end}.
+
+stats_hero_label_fun_test_() ->
+    {setup,
+     fun() ->
+             ReqId = <<"req_id_456">>,
+             Config = [{request_label, <<"nodes">>},
+                       {request_action, <<"PUT">>},
+                       {upstream_prefixes, [<<"stats_hero_testing">>]},
+                       {my_app, <<"test_hero">>},
+                       {org_name, unset},
+                       {label_fun, {test_util, label}},
+                       {request_id, ReqId}],
+             meck:new(net_adm, [passthrough, unstick]),
+             meck:expect(net_adm, localhost, fun() -> "test-host" end),
+             error_logger:tty(false),
+             capture_udp:start_link(0),
+             {ok, Port} = capture_udp:what_port(),
+             setup_stats_hero_env(Port),
+             application:start(stats_hero),
+             error_logger:tty(true),
+             {ok, WorkerPid} = stats_hero_worker_sup:new_worker(Config),
+             {ReqId, Config, WorkerPid}
+     end,
+     fun(_) -> cleanup_stats_hero() end,
+     fun({ReqId, _Config, WorkerPid}) ->
+             [{"calls can be made using label fun style",
+               fun() ->
+                       ?SH_TIME(ReqId, test_util, do_work, (100)),
+                       ?SH_TIME(ReqId, test_util, do_work, (100))
+               end},
+
+              {"snapshot gives running req_time",
+               fun() ->
+                       S1 = stats_hero:snapshot(ReqId, all),
+                       timer:sleep(50),
+                       S2 = stats_hero:snapshot(ReqId, all),
+                       timer:sleep(50),
+                       S3 = stats_hero:snapshot(ReqId, all),
+                       ReqTimes = [ proplists:get_value(<<"req_time">>, PL)
+                                    || PL <- [S1, S2, S3] ],
+                       %% no dups and in time of call order
+                       ?assertEqual(ReqTimes, lists:usort(ReqTimes))
+               end},
+
+              {"pedantic message handling tests for coverage",
+               fun() ->
+                       stats_hero:code_change(a, b, c),
+                       %% cast of unknown msg
+                       gen_server:cast(WorkerPid, should_be_ignored),
+                       ?assertEqual(unhandled, gen_server:call(WorkerPid, should_be_ignored))
+               end},
+
+              {"snapshot aggregates using prefix and labels via label fun",
+               fun() ->
+                       Snap = stats_hero:snapshot(ReqId, agg),
+                       ?assert(200 =< proplists:get_value(<<"stats_hero_testing_time">>, Snap)),
+                       ?assertEqual(2, proplists:get_value(<<"stats_hero_testing_count">>, Snap))
                end}
              ]
      end}.

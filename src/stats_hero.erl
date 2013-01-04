@@ -36,7 +36,6 @@
          report_metrics/2,
          snapshot/2,
          start_link/1,
-         label/2,
          clean_worker_data/1,
          stop_worker/1,
          init_storage/0]).
@@ -49,9 +48,6 @@
          terminate/2,
          code_change/3]).
 
--type upstream() :: 'authz' | 'chef_authz' | 'oc_chef_authz' | 'chef_otto' | 'chef_solr' |
-                    'chef_sql' | 'couchdb' | 'rdbms' | 'solr'.
-
 -type req_id() :: binary().
 -type time_unit() :: 'ms' | 'micros'.
 -type timing() :: {non_neg_integer(), time_unit()}.
@@ -60,9 +56,6 @@
 
 %% Global ETS table used by stats_hero to keep track of ReqId <=> Pid mappings.
 -define(SH_WORKER_TABLE, stats_hero_table).
-
-%% Helper macro for extracting values from proplists; crashes if key not found
--define(gv(Key, PL), element(2, lists:keyfind(Key, 1, PL))).
 
 -include("stats_hero.hrl").
 -include_lib("eunit/include/eunit.hrl").
@@ -79,6 +72,7 @@
           org_name               :: binary(),
           request_id             :: binary(),
           metrics = dict:new()   :: dict(),
+          label_fun              :: {atom(), atom()},
           upstream_prefixes = [] :: [binary()]
          }).
 
@@ -87,7 +81,6 @@
 
 -record(alog, {message = [] :: iolist()}).
 
--spec ctime(req_id(), binary(), fun(() -> any()) | timing()) -> any().
 %% @doc Update cummulative timer identified by `Label'.
 %%
 %% If `Fun' is a fun/0, the metric is updated with the time required to execute `Fun()' and
@@ -123,6 +116,7 @@
 %% `ReqId': binary(); `Mod': atom(); `Fun': atom();
 %% `Args': '(a1, a2, ..., aN)'
 %%
+-spec ctime(req_id(), term(), fun(() -> any()) | timing()) -> any().
 ctime(ReqId, Label, Fun) when is_function(Fun) ->
     {Micros, Result} = timer:tc(Fun),
     worker_ctime(ReqId, Label, {Micros, micros}),
@@ -181,7 +175,7 @@ alog(ReqId, Label, Msg) ->
 -spec snapshot(pid() | binary(), agg | no_agg | all) -> [{binary(), integer()}].
 %% @doc Return a snapshot of currently tracked metrics. The return value is a proplist with
 %% binary keys and integer values. If {@link stats_hero:report_metrics/2} has already been
-%% called, the request time recorded at the time of that call is returns in the
+%% called, the request time recorded at the time of that call is returned in the
 %% `<<"req_time">>' key. Otherwise, the request time thus far is returned, but not stored.
 %%
 %% This function is useful for obtaining metrics related to upstream service calls for
@@ -233,50 +227,36 @@ start_link(Config) ->
     %% avoid registering by name.
     gen_server:start_link(?MODULE, Config, []).
 
--spec label(upstream(), atom()) ->  <<_:8,_:_*8>>.
-%% @doc Generate a stats hero metric label for upstream `Prefix' and function name `Fun'.
-%% An error is thrown if `Prefix' is unknown.
-%% This is where we encode the mapping of module to upstream label.
-label(chef_otto, Fun) ->
-    label(couchdb, Fun);
-label(chef_sql, Fun) ->
-    label(rdbms, Fun);
-label(chef_authz, Fun) ->
-    label(authz, Fun);
-label(oc_chef_authz, Fun) ->
-    label(authz, Fun);
-label(chef_solr, Fun) ->
-    label(solr, Fun);
-label(Prefix, Fun) when Prefix =:= rdbms;
-                        Prefix =:= couchdb;
-                        Prefix =:= authz;
-                        Prefix =:= solr ->
-    PrefixBin = erlang:atom_to_binary(Prefix, utf8),
-    FunBin = erlang:atom_to_binary(Fun, utf8),
-    <<PrefixBin/binary, ".", FunBin/binary>>;
-label(BadPrefix, Fun) ->
-    erlang:error({bad_prefix, {BadPrefix, Fun}}).
-
 %%
 %% callbacks
 %%
 
 init(Config) ->
-    UpstreamPrefixes = ?gv(upstream_prefixes, Config),
     State = #state{start_time = os:timestamp(),
-                   my_app = as_bin(?gv(my_app, Config)),
+                   my_app = as_bin(gv(my_app, Config)),
                    my_host = hostname(),
-                   request_label = as_bin(?gv(request_label, Config)),
-                   request_action = as_bin(?gv(request_action, Config)),
-                   org_name = atom_or_bin(?gv(org_name, Config)),
-                   request_id = as_bin(?gv(request_id, Config)),
+                   request_label = as_bin(gv(request_label, Config)),
+                   request_action = as_bin(gv(request_action, Config)),
+                   org_name = atom_or_bin(gv(org_name, Config)),
+                   request_id = as_bin(gv(request_id, Config)),
                    metrics = dict:new(),
-                   upstream_prefixes = UpstreamPrefixes},
+                   label_fun = gv(label_fun, Config),
+                   upstream_prefixes = gv(upstream_prefixes, Config)},
     send_start_metrics(State),
     %% register this worker with the monitor who will make us findable by ReqId and will
     %% clean up the mapping when we exit.
     register(State#state.request_id),
     {ok, State}.
+
+%% helper function to extract values from a proplist. It is an error if the key is not
+%% found.
+gv(Key, PL) ->
+    case lists:keyfind(Key, 1, PL) of
+        {Key, Value} ->
+            Value;
+        false ->
+            error({required_key_missing, Key, PL})
+    end.
 
 handle_call({snapshot, Type, SnapTime}, _From,
             #state{start_time = StartTime,
@@ -295,19 +275,21 @@ handle_call({read_alog, Label}, _From, #state{metrics=Metrics}=State) ->
 handle_call(_, _From, State) ->
     {reply, unhandled, State}.
 
-handle_cast({ctime_time, Label, {Time, Unit}}, #state{metrics=Metrics}=State) ->
-    CTimer = fetch_ctimer(Label, Metrics),
+handle_cast({ctime_time, Label, {Time, Unit}}, #state{metrics=Metrics, label_fun=LabelFun}=State) ->
+    Label1 = maybe_label(Label, LabelFun),
+    CTimer = fetch_ctimer(Label1, Metrics),
     CTimer1 = update_ctimer(CTimer, {Time, Unit}),
-    State1 = State#state{metrics = store_ctimer(Label, CTimer1, Metrics)},
+    State1 = State#state{metrics = store_ctimer(Label1, CTimer1, Metrics)},
     {noreply, State1};
 handle_cast({report_metrics, EndTime, StatusCode}, #state{start_time = StartTime}=State) ->
     ReqTime = timer:now_diff(EndTime, StartTime) div 1000,
     do_report_metrics(ReqTime, StatusCode, State),
-    {noreply, State};
-handle_cast({alog, Label, Msg}, #state{metrics=Metrics}=State) ->
-    ALog = fetch_alog(Label, Metrics),
+    {noreply, State#state{end_time=EndTime}};
+handle_cast({alog, Label, Msg}, #state{metrics=Metrics, label_fun=LabelFun}=State) ->
+    Label1 = maybe_label(Label, LabelFun),
+    ALog = fetch_alog(Label1, Metrics),
     ALog1 = update_alog(ALog, Msg),
-    State1 = State#state{metrics = store_alog(Label, ALog1, Metrics)},
+    State1 = State#state{metrics = store_alog(Label1, ALog1, Metrics)},
     {noreply, State1};
 handle_cast(stop_worker, State) ->
     {stop, normal, State};
@@ -327,7 +309,14 @@ code_change(_OldVsn, State, _Extra) ->
 %% private functions
 %%
 
--spec worker_ctime(req_id(), binary(), timing()) -> not_found | ok.
+%% If user code provided a binary for `Label', use it as the label literal. Any other value
+%% is transformed using `LabelMod:LabelFun/1' provided to stats_hero in config.
+maybe_label(Label, _) when is_binary(Label) ->
+    Label;
+maybe_label(Label, {LabelMod, LabelFun}) ->
+    LabelMod:LabelFun(Label).
+
+-spec worker_ctime(req_id(), term(), timing()) -> not_found | ok.
 worker_ctime(ReqId, Label, {Time, Unit}) when Unit =:= ms; Unit =:= micros ->
     case find_stats_hero(ReqId) of
         not_found ->
@@ -513,9 +502,8 @@ make_log_tuples({no_agg, _}, ReqTime, Metrics) ->
 make_log_tuples({agg, Prefixes}, ReqTime, Metrics) ->
     Ans = dict:fold(fun(Label, #ctimer{}=CTimer, Acc) ->
                             [A, B] = ctimer_to_list(Label, CTimer),
-                            [A, B | Acc];
-                       (_, _, Acc) -> Acc end, [],
-                    aggregate_by_prefix(Metrics, Prefixes)),
+                            [A, B | Acc]
+                    end, [], aggregate_by_prefix(Metrics, Prefixes)),
     [{<<"req_time">>, ReqTime}| Ans];
 make_log_tuples({all, Prefixes}, ReqTime, Metrics) ->
     [{<<"req_time">>, _} | Agg] = make_log_tuples({agg, Prefixes}, ReqTime, Metrics),

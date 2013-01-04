@@ -47,21 +47,13 @@ This module implements the stats_hero worker, a gen_server used by a another pro
 
 
 <pre>timing() = {non_neg_integer(), <a href="#type-time_unit">time_unit()</a>}</pre>
-
-
-
-###<a name="type-upstream">upstream()</a>##
-
-
-
-<pre>upstream() = authz | chef_authz | oc_chef_authz | chef_otto | chef_solr | chef_sql | couchdb | rdbms | solr</pre>
 <a name="index"></a>
 
 ##Function Index##
 
 
 <table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#alog-3">alog/3</a></td><td>Append <code>Msg</code> to log identified by <code>Label</code> using the stats_hero worker found via the
-specified <code>ReqId</code>.</td></tr><tr><td valign="top"><a href="#clean_worker_data-1">clean_worker_data/1</a></td><td>Remove pid/req_id mapping for the stats_hero worker given by <code>Pid</code>.</td></tr><tr><td valign="top"><a href="#code_change-3">code_change/3</a></td><td></td></tr><tr><td valign="top"><a href="#ctime-3">ctime/3</a></td><td>Update cummulative timer identified by <code>Label</code>.</td></tr><tr><td valign="top"><a href="#handle_call-3">handle_call/3</a></td><td></td></tr><tr><td valign="top"><a href="#handle_cast-2">handle_cast/2</a></td><td></td></tr><tr><td valign="top"><a href="#handle_info-2">handle_info/2</a></td><td></td></tr><tr><td valign="top"><a href="#init-1">init/1</a></td><td></td></tr><tr><td valign="top"><a href="#init_storage-0">init_storage/0</a></td><td>Initialize the ETS storage for mapping ReqId to/from stats_hero worker Pids.</td></tr><tr><td valign="top"><a href="#label-2">label/2</a></td><td>Generate a stats hero metric label for upstream <code>Prefix</code> and function name <code>Fun</code>.</td></tr><tr><td valign="top"><a href="#read_alog-2">read_alog/2</a></td><td>Retrieve log message stored at <code>Label</code> for the worker associated with <code>ReqId</code>.</td></tr><tr><td valign="top"><a href="#report_metrics-2">report_metrics/2</a></td><td>Send accumulated metric data to estatsd.</td></tr><tr><td valign="top"><a href="#snapshot-2">snapshot/2</a></td><td>Return a snapshot of currently tracked metrics.</td></tr><tr><td valign="top"><a href="#start_link-1">start_link/1</a></td><td>Start your personalized stats_hero process.</td></tr><tr><td valign="top"><a href="#stop_worker-1">stop_worker/1</a></td><td>Stop the worker with the specified <code>Pid</code>.</td></tr><tr><td valign="top"><a href="#terminate-2">terminate/2</a></td><td></td></tr></table>
+specified <code>ReqId</code>.</td></tr><tr><td valign="top"><a href="#clean_worker_data-1">clean_worker_data/1</a></td><td>Remove pid/req_id mapping for the stats_hero worker given by <code>Pid</code>.</td></tr><tr><td valign="top"><a href="#code_change-3">code_change/3</a></td><td></td></tr><tr><td valign="top"><a href="#ctime-3">ctime/3</a></td><td>Update cummulative timer identified by <code>Label</code>.</td></tr><tr><td valign="top"><a href="#handle_call-3">handle_call/3</a></td><td></td></tr><tr><td valign="top"><a href="#handle_cast-2">handle_cast/2</a></td><td></td></tr><tr><td valign="top"><a href="#handle_info-2">handle_info/2</a></td><td></td></tr><tr><td valign="top"><a href="#init-1">init/1</a></td><td></td></tr><tr><td valign="top"><a href="#init_storage-0">init_storage/0</a></td><td>Initialize the ETS storage for mapping ReqId to/from stats_hero worker Pids.</td></tr><tr><td valign="top"><a href="#read_alog-2">read_alog/2</a></td><td>Retrieve log message stored at <code>Label</code> for the worker associated with <code>ReqId</code>.</td></tr><tr><td valign="top"><a href="#report_metrics-2">report_metrics/2</a></td><td>Send accumulated metric data to estatsd.</td></tr><tr><td valign="top"><a href="#snapshot-2">snapshot/2</a></td><td>Return a snapshot of currently tracked metrics.</td></tr><tr><td valign="top"><a href="#start_link-1">start_link/1</a></td><td>Start your personalized stats_hero process.</td></tr><tr><td valign="top"><a href="#stop_worker-1">stop_worker/1</a></td><td>Stop the worker with the specified <code>Pid</code>.</td></tr><tr><td valign="top"><a href="#terminate-2">terminate/2</a></td><td></td></tr></table>
 
 
 <a name="functions"></a>
@@ -105,7 +97,7 @@ and `ok` otherwise.<a name="code_change-3"></a>
 ###ctime/3##
 
 
-<pre>ctime(ReqId::<a href="#type-req_id">req_id()</a>, Label::binary(), Fun::fun(() -> any()) | <a href="#type-timing">timing()</a>) -> any()</pre>
+<pre>ctime(ReqId::<a href="#type-req_id">req_id()</a>, Label::term(), Fun::fun(() -> any()) | <a href="#type-timing">timing()</a>) -> any()</pre>
 <br></br>
 
 
@@ -193,18 +185,7 @@ And here's the intended expansion:
 
 Initialize the ETS storage for mapping ReqId to/from stats_hero worker Pids.
 
-This should be called by the supervisor that supervises the stats_hero_monitor process.<a name="label-2"></a>
-
-###label/2##
-
-
-<pre>label(Prefix::<a href="#type-upstream">upstream()</a>, Fun::atom()) -> <<_:8, _:_*8>></pre>
-<br></br>
-
-
-Generate a stats hero metric label for upstream `Prefix` and function name `Fun`.
-An error is thrown if `Prefix` is unknown.
-This is where we encode the mapping of module to upstream label.<a name="read_alog-2"></a>
+This should be called by the supervisor that supervises the stats_hero_monitor process.<a name="read_alog-2"></a>
 
 ###read_alog/2##
 
@@ -242,7 +223,7 @@ The time reported for the entire request is the time between worker start and th
 
 Return a snapshot of currently tracked metrics. The return value is a proplist with
 binary keys and integer values. If [`stats_hero:report_metrics/2`](stats_hero.md#report_metrics-2) has already been
-called, the request time recorded at the time of that call is returns in the
+called, the request time recorded at the time of that call is returned in the
 `<<"req_time">>` key. Otherwise, the request time thus far is returned, but not stored.
 
 This function is useful for obtaining metrics related to upstream service calls for
