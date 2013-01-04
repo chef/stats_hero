@@ -29,5 +29,10 @@
 %%
 
 -define(SH_TIME(ReqId, Mod, Fun, Args),
-        stats_hero:ctime(ReqId, stats_hero:label(Mod, Fun),
+        stats_hero:ctime(ReqId, {Mod, Fun},
+                         fun() -> Mod:Fun Args end)).
+
+-define(SH_TIME2(ReqId, Mod, Fun, Args),
+        stats_hero:ctime(ReqId,
+                         {Mod, Fun},
                          fun() -> Mod:Fun Args end)).
