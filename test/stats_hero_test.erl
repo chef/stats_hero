@@ -182,7 +182,7 @@ stats_hero_integration_test_() ->
                                  {no_agg, ExpectedNoAggKeys}],
                         [ begin
                               Got = stats_hero:snapshot(ReqId, Type),
-                              GotKeys = lists:sort(proplists:get_keys(Got)),
+                              GotKeys = lists:sort([K || {K, _} <- Got ]),
                               ?_assertEqual({Type, GotKeys}, {Type, lists:sort(Expected)})
                           end || {Type, Expected} <- Tests ]
                 end},

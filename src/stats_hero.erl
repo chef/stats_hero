@@ -506,8 +506,9 @@ make_log_tuples({agg, Prefixes}, ReqTime, Metrics) ->
                     end, [], aggregate_by_prefix(Metrics, Prefixes)),
     [{<<"req_time">>, ReqTime}| Ans];
 make_log_tuples({all, Prefixes}, ReqTime, Metrics) ->
+    %% remove req_time added by first call, it will be added by the no_agg call
     [{<<"req_time">>, _} | Agg] = make_log_tuples({agg, Prefixes}, ReqTime, Metrics),
-    [{<<"req_time">>, ReqTime} | make_log_tuples({no_agg, none}, ReqTime, Metrics) ++ Agg].
+    make_log_tuples({no_agg, none}, ReqTime, Metrics) ++ Agg.
 
 %% Turn a #ctimer{} into a proplist appropriate for logging
 ctimer_to_list(Label, #ctimer{count = Count, time = Time}) when is_binary(Label) ->
