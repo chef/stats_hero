@@ -1,15 +1,15 @@
 
 
-#Module stats_hero_app#
+# Module stats_hero_app #
 * [Function Index](#index)
 * [Function Details](#functions)
 
-
 __Behaviours:__ [`application`](application.md).
 
-__Authors:__ Seth Falcon ([`seth@opscode.com`](mailto:seth@opscode.com)).<a name="index"></a>
+__Authors:__ Seth Falcon ([`seth@opscode.com`](mailto:seth@opscode.com)).
+<a name="index"></a>
 
-##Function Index##
+## Function Index ##
 
 
 <table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#start-2">start/2</a></td><td></td></tr><tr><td valign="top"><a href="#stop-1">stop/1</a></td><td></td></tr></table>
@@ -17,19 +17,19 @@ __Authors:__ Seth Falcon ([`seth@opscode.com`](mailto:seth@opscode.com)).<a name
 
 <a name="functions"></a>
 
-##Function Details##
+## Function Details ##
 
 <a name="start-2"></a>
 
-###start/2##
-
+### start/2 ###
 
 `start(StartType, StartArgs) -> any()`
 
+
 <a name="stop-1"></a>
 
-###stop/1##
-
+### stop/1 ###
 
 `stop(State) -> any()`
+
 
