@@ -214,17 +214,15 @@ stats_hero_integration_test_() ->
                         {_MsgCount, Msg} = capture_udp:read(),
                         [GotStart, GotEnd] = [ parse_shp(M) || M <- Msg ],
                         ExpectStart =
-                            [{<<"test_hero.application.byOrgname.orginc">>,<<"1">>,<<"m">>},
-                             {<<"test_hero.application.allRequests">>,<<"1">>,<<"m">>},
+                            [{<<"test_hero.application.allRequests">>,<<"1">>,<<"m">>},
                              {<<"test_hero.test-host.allRequests">>,<<"1">>,<<"m">>},
                              {<<"test_hero.application.byRequestType.nodes.PUT">>,<<"1">>,<<"m">>}],
                         ?assertEqual(GotStart, ExpectStart),
                         %% For the end metrics, we can't rely on the
                         %% actual timing data, but can verify labels
                         %% and types.
-                        ExpectEnd = 
-                            [{<<"test_hero.application.byOrgname.orginc">>,<<"109">>,<<"h">>},
-                             {<<"test_hero.application.byStatusCode.200">>,<<"1">>,<<"m">>},
+                        ExpectEnd =
+                            [{<<"test_hero.application.byStatusCode.200">>,<<"1">>,<<"m">>},
                              {<<"test_hero.test-host.byStatusCode.200">>,<<"1">>,<<"m">>},
                              {<<"test_hero.application.allRequests">>,<<"109">>,<<"h">>},
                              {<<"test_hero.test-host.allRequests">>,<<"109">>,<<"h">>},
@@ -238,7 +236,7 @@ stats_hero_integration_test_() ->
                               <<"1200">>,<<"h">>},
                              {<<"test_hero.application.byRequestType.nodes.PUT.upstreamRequests.authz">>,
                               <<"100">>,<<"h">>}],
-                        
+
                         [ begin
                               ?assertEqual(ELabel, GLabel),
                               ?assertEqual(EType, GType)
