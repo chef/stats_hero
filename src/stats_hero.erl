@@ -69,7 +69,6 @@
           my_host                :: binary(),
           request_label          :: binary(),   % roles
           request_action         :: binary(),   % update
-          org_name               :: binary(),
           request_id             :: binary(),
           metrics = dict:new()   :: dict(),
           label_fun              :: {atom(), atom()},
@@ -220,7 +219,7 @@ report_metrics(Pid, StatusCode) when is_pid(Pid), is_integer(StatusCode) ->
 %% @doc Start your personalized stats_hero process.
 %%
 %% `Config' is a proplist with keys: request_label, request_action, upstream_prefixes,
-%% my_app, org_name, and request_id.
+%% my_app, and request_id.
 %%
 start_link(Config) ->
     %% this server is intended to be a short-lived companion to a request process, so we
@@ -237,7 +236,6 @@ init(Config) ->
                    my_host = hostname(),
                    request_label = as_bin(gv(request_label, Config)),
                    request_action = as_bin(gv(request_action, Config)),
-                   org_name = atom_or_bin(gv(org_name, Config)),
                    request_id = as_bin(gv(request_id, Config)),
                    metrics = dict:new(),
                    label_fun = gv(label_fun, Config),
@@ -427,18 +425,16 @@ hostname() ->
 %% @doc Send start metrics to estatsd. These are all meters and are sent when the stats_hero
 %% process is initialized.
 %%
-%% We currently record application all requests, application by org, application by host all
+%% We currently record application all requests, application by host all
 %% requests, and application by request type.
-%% 
+%%
 %% TODO: make this configurable and not Opscode specific
 send_start_metrics(#state{my_app = MyApp, my_host = MyHost,
-                          request_label = ReqLabel, request_action = ReqAction,
-                          org_name = OrgName}) ->
-    Stats0 = [{[MyApp, ".application.allRequests"], 1, "m"},
+                          request_label = ReqLabel, request_action = ReqAction}) ->
+    Stats = [{[MyApp, ".application.allRequests"], 1, "m"},
              {[MyApp, ".", MyHost, ".allRequests"], 1, "m"},
              {[MyApp, ".application.byRequestType.", ReqLabel, ".", ReqAction], 1, "m"}
             ],
-    Stats = maybe_add_org(OrgName, {[MyApp, ".application.byOrgname.", OrgName], 1, "m"}, Stats0),
     Payload = [ make_metric_line(M) || M <- Stats ],
     send_payload(Payload),
     ok.
@@ -449,7 +445,7 @@ send_start_metrics(#state{my_app = MyApp, my_host = MyHost,
 %% The upstream requests are collapsed according to the upstream prefix list.
 %%
 %% We send a status code meter metric for application and by host application. We package
-%% the request time into four metrics: application all requests, application by org, by host
+%% the request time into four metrics: application all requests, by host
 %% all requests, and application by request type.
 %%
 %% In addition, we inspect the `upstream_prefixes' and aggregate collected metrics that
@@ -463,19 +459,15 @@ do_report_metrics(ReqTime, StatusCode,
                          my_host = MyHost,
                          request_label = ReqLabel,
                          request_action = ReqAction,
-                         org_name = OrgName,
                          metrics = Metrics,
                          upstream_prefixes = Prefixes}) ->
     StatusStr = integer_to_list(StatusCode),
-    Stats0 = [{[MyApp, ".application.byStatusCode.", StatusStr], 1, "m"},
-              {[MyApp, ".", MyHost, ".byStatusCode.", StatusStr], 1, "m"},
-              {[MyApp, ".application.allRequests"], ReqTime, "h"},
-              {[MyApp, ".", MyHost, ".allRequests"], ReqTime, "h"},
-              {[MyApp, ".application.byRequestType.", ReqLabel, ".", ReqAction], ReqTime, "h"}
-             ],
-    Stats = maybe_add_org(OrgName,
-                          {[MyApp, ".application.byOrgname.", OrgName], ReqTime, "h"},
-                          Stats0),
+    Stats = [{[MyApp, ".application.byStatusCode.", StatusStr], 1, "m"},
+             {[MyApp, ".", MyHost, ".byStatusCode.", StatusStr], 1, "m"},
+             {[MyApp, ".application.allRequests"], ReqTime, "h"},
+             {[MyApp, ".", MyHost, ".allRequests"], ReqTime, "h"},
+             {[MyApp, ".application.byRequestType.", ReqLabel, ".", ReqAction], ReqTime, "h"}
+            ],
     UpAggregates = dict:to_list(aggregate_by_prefix(Metrics, Prefixes)),
     Upstreams = upstreams_by_prefix(Metrics, Prefixes),
     UpstreamStats =  [ {[MyApp, ".upstreamRequests.", Upstream], CTime#ctimer.time, "h"}
@@ -576,16 +568,3 @@ as_bin(X) when is_list(X) ->
     iolist_to_binary(X);
 as_bin(X) when is_binary(X) ->
     X.
-
-atom_or_bin(X) when is_atom(X);
-                    is_binary(X) ->
-    X;
-atom_or_bin(X) ->
-    as_bin(X).
-
-%% Append `Data' to `List' if `OrgName' is a binary. Otherwise, return `List'. This allows
-%% us to ignore org-specific metrics when org name is not provided.
-maybe_add_org(OrgName, Data, List) when is_binary(OrgName) ->
-    [Data | List];
-maybe_add_org(_, _, List) ->
-    List.
