@@ -60,7 +60,6 @@ using [`stats_hero_worker_sup:new_worker/1`](stats_hero_worker_sup.md#new_worker
     Config = [{estatsd_host, EstatsdServer},
               {estatsd_port, EstatsdPort},
               {request_id, ReqId},
-              {org_name, OrgName},
               {my_app, "ChefAPI"},
               {request_label, RequestLabel},
               {request_action, atom_to_list(wrq:method(Req))},
@@ -93,11 +92,10 @@ You can retrieve call timing and count data from your `stats_hero` worker using 
 Here's the usage from `chef_rest_wm`:
 
 ```
-log_request(Req, #base_state{reqid = ReqId, log_msg = Msg, organization_name = Org}) ->
+log_request(Req, #base_state{reqid = ReqId, log_msg = Msg}) ->
     Status = wrq:response_code(Req),
     Tuples = [{req_id, ReqId},
               {status, Status},
-              {org_name, Org},
               {method, wrq:method(Req)},
               {path, wrq:raw_path(Req)},
               {user, wrq:get_req_header("x-ops-userid", Req)},
@@ -132,7 +130,6 @@ worker sends the following data:
 
 ```
 1|167
-test_hero.application.byOrgName.orginc:1|m
 test_hero.application.allRequests:1|m
 test_hero.test-host.allRequests:1|m
 test_hero.application.byRequestType.nodes.PUT:1|m
@@ -143,7 +140,6 @@ When [`stats_hero:report_metrics/2`](stats_hero.md#report_metrics-2) is called t
 1|640
 test_hero.application.byStatusCode.200:1|m
 test_hero.test-host.byStatusCode.200:1|m
-test_hero.application.byOrgName.orginc:108|h
 test_hero.application.allRequests:108|h
 test_hero.test-host.allRequests:108|h
 test_hero.application.byRequestType.nodes.PUT:108|h

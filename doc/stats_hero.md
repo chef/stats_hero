@@ -30,9 +30,9 @@ This module implements the stats_hero worker, a gen_server used by a another pro
 
 
 
-```
+<pre><code>
 req_id() = binary()
-```
+</code></pre>
 
 
 
@@ -42,9 +42,9 @@ req_id() = binary()
 
 
 
-```
+<pre><code>
 time_unit() = ms | micros
-```
+</code></pre>
 
 
 
@@ -54,9 +54,9 @@ time_unit() = ms | micros
 
 
 
-```
+<pre><code>
 timing() = {non_neg_integer(), <a href="#type-time_unit">time_unit()</a>}
-```
+</code></pre>
 
 
 <a name="index"></a>
@@ -77,9 +77,9 @@ specified <code>ReqId</code>.</td></tr><tr><td valign="top"><a href="#clean_work
 ### alog/3 ###
 
 
-```
+<pre><code>
 alog(ReqId::binary(), Label::binary(), Msg::iolist()) -&gt; ok | not_found
-```
+</code></pre>
 
 <br></br>
 
@@ -91,9 +91,9 @@ specified `ReqId`.
 ### clean_worker_data/1 ###
 
 
-```
+<pre><code>
 clean_worker_data(Pid::pid()) -&gt; ok | not_found
-```
+</code></pre>
 
 <br></br>
 
@@ -117,9 +117,9 @@ and `ok` otherwise.
 ### ctime/3 ###
 
 
-```
-ctime(ReqId::<a href="#type-req_id">req_id()</a>, Label::term(), Fun::fun(() -> any()) | <a href="#type-timing">timing()</a>) -> any()
-```
+<pre><code>
+ctime(ReqId::<a href="#type-req_id">req_id()</a>, Label::term(), Fun::fun(() -&gt; any()) | <a href="#type-timing">timing()</a>) -&gt; any()
+</code></pre>
 
 <br></br>
 
@@ -209,9 +209,9 @@ And here's the intended expansion:
 ### init_storage/0 ###
 
 
-```
+<pre><code>
 init_storage() -&gt; atom()
-```
+</code></pre>
 
 <br></br>
 
@@ -226,9 +226,9 @@ This should be called by the supervisor that supervises the stats_hero_monitor p
 ### read_alog/2 ###
 
 
-```
+<pre><code>
 read_alog(ReqId::pid() | binary(), Label::binary()) -&gt; iolist() | not_found
-```
+</code></pre>
 
 <br></br>
 
@@ -239,9 +239,9 @@ Retrieve log message stored at `Label` for the worker associated with `ReqId`.
 ### report_metrics/2 ###
 
 
-```
+<pre><code>
 report_metrics(ReqId::pid() | binary(), StatusCode::integer()) -&gt; not_found | ok
-```
+</code></pre>
 
 <br></br>
 
@@ -259,9 +259,9 @@ The time reported for the entire request is the time between worker start and th
 ### snapshot/2 ###
 
 
-```
+<pre><code>
 snapshot(ReqId::pid() | binary(), Type::agg | no_agg | all) -&gt; [{binary(), integer()}]
-```
+</code></pre>
 
 <br></br>
 
@@ -288,16 +288,16 @@ Start your personalized stats_hero process.
 
 
 `Config` is a proplist with keys: request_label, request_action, upstream_prefixes,
-my_app, org_name, and request_id.
+my_app, and request_id.
 
 <a name="stop_worker-1"></a>
 
 ### stop_worker/1 ###
 
 
-```
+<pre><code>
 stop_worker(ReqId::pid() | binary()) -&gt; ok
-```
+</code></pre>
 
 <br></br>
 

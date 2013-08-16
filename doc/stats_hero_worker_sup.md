@@ -33,7 +33,7 @@ __Authors:__ Seth Falcon ([`seth@opscode.com`](mailto:seth@opscode.com)), Kevin 
 `new_worker(Config) -> any()`
 
 Start a new `stats_hero` worker.`Config` is a proplist with keys: request_label,
-request_action, estatsd_host, estatsd_port, upstream_prefixes, my_app, org_name, and
+request_action, estatsd_host, estatsd_port, upstream_prefixes, my_app, and
 request_id.
 
 __See also:__ [stats_hero:start_link/1](stats_hero.md#start_link-1).

@@ -68,9 +68,9 @@ behind in the ETS table that keeps track of the `request_id <=> pid` mapping.  @
 ### register/1 ###
 
 
-```
+<pre><code>
 register(Pid::pid()) -&gt; ok
-```
+</code></pre>
 
 <br></br>
 
@@ -85,9 +85,9 @@ entries from the shared ETS table.
 ### registered_count/0 ###
 
 
-```
+<pre><code>
 registered_count() -&gt; non_neg_integer()
-```
+</code></pre>
 
 <br></br>
 

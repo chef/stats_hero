@@ -63,9 +63,9 @@ server configured for this sender.</td></tr><tr><td valign="top"><a href="#start
 ### send/1 ###
 
 
-```
+<pre><code>
 send(Payload::iolist()) -&gt; ok | {error, term()}
-```
+</code></pre>
 
 <br></br>
 
@@ -76,9 +76,9 @@ Send `Payload` as in `send/2` but uses the pg2 group to find a sender.
 ### send/2 ###
 
 
-```
+<pre><code>
 send(Pid::pid(), Payload::iolist()) -&gt; ok | {error, term()}
-```
+</code></pre>
 
 <br></br>
 
