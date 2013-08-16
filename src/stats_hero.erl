@@ -69,7 +69,6 @@
           my_host                :: binary(),
           request_label          :: binary(),   % roles
           request_action         :: binary(),   % update
-          org_name               :: binary(),
           request_id             :: binary(),
           metrics = dict:new()   :: dict(),
           label_fun              :: {atom(), atom()},
@@ -220,7 +219,7 @@ report_metrics(Pid, StatusCode) when is_pid(Pid), is_integer(StatusCode) ->
 %% @doc Start your personalized stats_hero process.
 %%
 %% `Config' is a proplist with keys: request_label, request_action, upstream_prefixes,
-%% my_app, org_name, and request_id.
+%% my_app, and request_id.
 %%
 start_link(Config) ->
     %% this server is intended to be a short-lived companion to a request process, so we
@@ -237,7 +236,6 @@ init(Config) ->
                    my_host = hostname(),
                    request_label = as_bin(gv(request_label, Config)),
                    request_action = as_bin(gv(request_action, Config)),
-                   org_name = atom_or_bin(gv(org_name, Config)),
                    request_id = as_bin(gv(request_id, Config)),
                    metrics = dict:new(),
                    label_fun = gv(label_fun, Config),
@@ -570,10 +568,3 @@ as_bin(X) when is_list(X) ->
     iolist_to_binary(X);
 as_bin(X) when is_binary(X) ->
     X.
-
-atom_or_bin(X) when is_atom(X);
-                    is_binary(X) ->
-    X;
-atom_or_bin(X) ->
-    as_bin(X).
-

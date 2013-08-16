@@ -33,7 +33,7 @@
 -define(SERVER, ?MODULE).
 
 %% @doc Start a new `stats_hero' worker.  `Config' is a proplist with keys: request_label,
-%% request_action, estatsd_host, estatsd_port, upstream_prefixes, my_app, org_name, and
+%% request_action, estatsd_host, estatsd_port, upstream_prefixes, my_app, and
 %% request_id.
 %% @see stats_hero:start_link/1
 new_worker(Config) ->

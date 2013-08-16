@@ -96,8 +96,6 @@ stats_hero_missing_required_config_test_() ->
               {request_action, <<"PUT">>},
               {upstream_prefixes, ?UPSTREAMS},
               {my_app, <<"test_hero">>},
-              %% again purposeful use of string to test conversion
-              {org_name, "orginc"},
               {label_fun, {test_util, label}},
               {request_id, <<"req_id_123">>}]
      end,
@@ -108,7 +106,7 @@ stats_hero_missing_required_config_test_() ->
      end,
      fun(FullConfig) ->
              %% These are the required keys.
-             Keys = [my_app, request_label, request_action, org_name, request_id,
+             Keys = [my_app, request_label, request_action, request_id,
                      upstream_prefixes],
              [ {"missing " ++ atom_to_list(Key),
                 fun() ->
@@ -127,7 +125,6 @@ stats_hero_integration_test_() ->
                        %% specify a config entry as a string to
                        %% exercise conversion to binary.
                        {my_app, "test_hero"},
-                       {org_name, <<"orginc">>},
                        {label_fun, {test_util, label}},
                        {request_id, <<"req_id_123">>}],
              setup_stats_hero(Config)
@@ -263,35 +260,6 @@ stats_hero_integration_test_() ->
      end
     }.
 
-stats_hero_no_org_integration_test_() ->
-    {setup,
-     fun() ->
-             ReqId = <<"req_id_123">>,
-              Config = [{request_label, <<"nodes">>},
-                        {request_action, <<"PUT">>},
-                        {upstream_prefixes, ?UPSTREAMS},
-                        {my_app, <<"test_hero">>},
-                        {org_name, unset},
-                        {label_fun, {test_util, label}},
-                        {request_id, ReqId}],
-             setup_stats_hero(Config)
-     end,
-     fun(_X) -> cleanup_stats_hero() end,
-     fun({_ReqId, _Config, _Calls}) ->
-             [
-              {"udp is captured",
-               fun() ->
-                       {_MsgCount, Msg} = capture_udp:read(),
-                       [GotStart] = [ parse_shp(M) || M <- Msg ],
-                       ExpectStart =
-                           [{<<"test_hero.application.allRequests">>,<<"1">>,<<"m">>},
-                            {<<"test_hero.test-host.allRequests">>,<<"1">>,<<"m">>},
-                            {<<"test_hero.application.byRequestType.nodes.PUT">>,<<"1">>,<<"m">>}],
-                       ?assertEqual(GotStart, ExpectStart)
-               end}
-             ]
-     end}.
-
 stats_hero_label_fun_test_() ->
     {setup,
      fun() ->
@@ -300,7 +268,6 @@ stats_hero_label_fun_test_() ->
                        {request_action, <<"PUT">>},
                        {upstream_prefixes, [<<"stats_hero_testing">>]},
                        {my_app, <<"test_hero">>},
-                       {org_name, unset},
                        {label_fun, {test_util, label}},
                        {request_id, ReqId}],
              meck:new(net_adm, [passthrough, unstick]),
