@@ -37,11 +37,11 @@ start_link() ->
     supervisor:start_link({local, ?SERVER}, ?MODULE, []).
 
 init([]) ->
-    {ok, SenderCount} = application:get_env(stats_hero, udp_socket_pool_size),
+    SenderCount = envy:get(stats_hero, udp_socket_pool_size, pos_integer),
     error_logger:info_msg("starting stats_hero_sender_sup with ~B senders~n", [SenderCount]),
     ok = pg2:create(?SH_SENDER_POOL),
-    {ok, Host} = application:get_env(stats_hero, estatsd_host),
-    {ok, Port} = application:get_env(stats_hero, estatsd_port),
+    Host = envy:get(stats_hero, estatsd_host, string),
+    Port = envy:get(stats_hero, estatsd_port, pos_integer),
     Config = [{estatsd_host, Host}, {estatsd_port, Port}, {group_name, stats_hero_sender_pool}],
     StartUp = {stats_hero_sender, start_link, [Config]},
     Children = [ {make_id(I), StartUp, permanent, brutal_kill, worker, [stats_hero_sender]}
