@@ -160,7 +160,6 @@ stats_hero_integration_test_() ->
                        ?assertEqual([<<"hello, ">>,<<"world.">>],
                                     stats_hero:read_alog(ReqId, <<"my_log">>))
                end},
-
                {"snapshot returns the right set of keys", generator,
                 fun() ->
                         BuildKeys = fun(K, Acc) -> expand_label(K) ++ Acc end,
@@ -253,9 +252,11 @@ stats_hero_integration_test_() ->
                         %% to wait for the monitor to receive and
                         %% process the DOWN message. This is lame.
                         stats_hero:stop_worker(<<"temp1">>),
-                        timer:sleep(200),       % LAME
+                        wait_for_stats_hero_death(<<"temp1">>),
                         ?assertEqual(1, stats_hero_monitor:registered_count())
                 end}
+              %% put this test really last because we don't want to kill everyone
+               %% else's worker
               ]
      end
     }.
@@ -330,3 +331,76 @@ parse_shp(Msg) ->
                 end || [M, Type] <- MetricsRaw ],
     Metrics.
             
+stats_hero_should_cleanup_when_parent_dies_test() ->
+    ReqId = <<"req_id_123">>,
+    Config = [{request_label, <<"nodes">>},
+              {request_action, <<"PUT">>},
+              {upstream_prefixes, ?UPSTREAMS},
+              %% specify a config entry as a string to
+              %% exercise conversion to binary.
+              {my_app, "test_hero"},
+              {label_fun, {test_util, label}},
+              {request_id, ReqId}],
+    error_logger:tty(false),
+    capture_udp:start_link(0),
+    {ok, Port} = capture_udp:what_port(),
+    setup_stats_hero_env(Port),
+    application:start(stats_hero),
+
+    %% Test that initial parent is monitored
+    ?assertEqual(0,stats_hero_monitor:registered_count()),
+    InitialParentMonitored = create_stats_hero_worker_async(Config),
+    ?assertEqual(1, stats_hero_monitor:registered_count()),
+    wait_for_death(InitialParentMonitored),
+    wait_for_stats_hero_death(ReqId),
+    ?assertEqual(0, stats_hero_monitor:registered_count()),
+    %% Test that death of an intermediate parent does not take down worker
+    FirstParent = create_stats_hero_worker_async(Config),
+    ?assertEqual(1, stats_hero_monitor:registered_count()),
+    FinalParent = proc_lib:spawn( fun  wait_for_kill/0 ),
+    stats_hero:reparent(ReqId, FinalParent),
+    ?assertEqual(1, stats_hero_monitor:registered_count()),
+    wait_for_death(FirstParent),
+    ?assertEqual(1, stats_hero_monitor:registered_count()),
+    wait_for_death(FinalParent),
+    wait_for_stats_hero_death(ReqId),
+    ?assertEqual(0, stats_hero_monitor:registered_count()).
+
+create_stats_hero_worker_async(Config) ->
+    Self = self(),
+    Pid = proc_lib:spawn(fun() ->
+                           {ok, _} = stats_hero_worker_sup:new_worker(Config),
+                           Self ! done,
+                           wait_for_kill()
+                   end),
+    receive
+        done ->
+            ok
+    end,
+    Pid.
+
+wait_for_death(Pid) ->
+    Pid ! kill,
+    wait_for_death(Pid, process_info(Pid)).
+
+wait_for_death(_Pid, undefined) ->
+    ok;
+wait_for_death(Pid, _) ->
+    wait_for_death(Pid, process_info(Pid)).
+
+wait_for_stats_hero_death(ReqId) ->
+    wait_for_stats_hero_death(ReqId, stats_hero:alog(ReqId, <<"">>, <<"">>)).
+
+wait_for_stats_hero_death(_, not_found) ->
+    ok;
+wait_for_stats_hero_death(ReqId, _) ->
+    wait_for_stats_hero_death(ReqId, stats_hero:alog(ReqId, <<"">>, <<"">>)).
+
+wait_for_kill() ->
+    receive
+        kill ->
+            ok
+    after
+        5000 ->
+            ok
+    end.

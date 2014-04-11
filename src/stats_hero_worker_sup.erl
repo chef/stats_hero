@@ -2,6 +2,7 @@
 %% ex: ts=4 sw=4 et
 %% @author Seth Falcon <seth@opscode.com>
 %% @author Kevin Smith <kevin@opscode.com>
+%% @author Oliver Ferrigni <oliver@opscode.com>
 %% Copyright 2012 Opscode, Inc. All Rights Reserved.
 %%
 %% This file is provided to you under the Apache License,
@@ -34,10 +35,12 @@
 
 %% @doc Start a new `stats_hero' worker.  `Config' is a proplist with keys: request_label,
 %% request_action, estatsd_host, estatsd_port, upstream_prefixes, my_app, and
-%% request_id.
+%% request_id.  {parent, self()} added to Config as the this function called from the
+%% caller's process space.  The stats_hero worker will monitor the caller to avoid
+%% possible process leaks if the caller crashes before cleaning up the worker.
 %% @see stats_hero:start_link/1
 new_worker(Config) ->
-    supervisor:start_child(?SERVER, [Config]).
+    supervisor:start_child(?SERVER,[ [{parent, self()}|Config] ]).
 
 start_link() ->
     supervisor:start_link({local, ?SERVER}, ?MODULE, []).
