@@ -2,6 +2,7 @@
 %% ex: ts=4 sw=4 et
 %% @author John Keiser <jkeiser@opscode.com>
 %% @author Seth Falcon <seth@opscode.com>
+%% @author Oliver Ferrigni <oliver@opscode.com>
 %% @doc stats_hero metric collector worker gen_server
 %%
 %% This module implements the stats_hero worker, a gen_server used by a another process
@@ -38,7 +39,10 @@
          start_link/1,
          clean_worker_data/1,
          stop_worker/1,
-         init_storage/0]).
+         init_storage/0,
+         reparent/2,
+         reparent/1
+        ]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -58,7 +62,6 @@
 -define(SH_WORKER_TABLE, stats_hero_table).
 
 -include("stats_hero.hrl").
--include_lib("eunit/include/eunit.hrl").
 
 -record(state, {
           start_time             :: {non_neg_integer(), non_neg_integer(),
@@ -72,7 +75,9 @@
           request_id             :: binary(),
           metrics = dict:new()   :: dict(),
           label_fun              :: {atom(), atom()},
-          upstream_prefixes = [] :: [binary()]
+          upstream_prefixes = [] :: [binary()],
+          parent_pid             :: pid(),
+          parent_monitor         :: reference()
          }).
 
 -record(ctimer, {count = 0 :: non_neg_integer(),
@@ -122,6 +127,29 @@ ctime(ReqId, Label, Fun) when is_function(Fun) ->
     Result;
 ctime(ReqId, Label, {Time, Unit}) ->
     worker_ctime(ReqId, Label, {Time, Unit}).
+
+-spec reparent(req_id()) -> ok | not_found.
+%% @doc Change the parent process of the worker identified by `ReqId' to be
+%% monitored by stats_hero to the calling process.
+%%
+%% In the event the current process that owns the stats_hero worker is going to
+%% terminate, the worker can be adopted by another process.
+reparent(ReqId) ->
+    reparent(ReqId, self()).
+
+-spec reparent(req_id(), pid()) -> ok | not_found.
+%% @doc Change the parent process of the worker identified by `ReqId' to be
+%% monitored by stats_hero to the process `Pid'
+%%
+%% In the event the current process that owns the stats_hero worker is going to
+%% terminate, the worker can be adopted by another process.
+reparent(ReqId, Pid) ->
+    case find_stats_hero(ReqId) of
+        not_found ->
+            not_found;
+        WorkerPid ->
+            gen_server:cast(WorkerPid, {reparent, Pid})
+    end.
 
 -spec init_storage() -> atom().
 %% @doc Initialize the ETS storage for mapping ReqId to/from stats_hero worker Pids.
@@ -219,7 +247,8 @@ report_metrics(Pid, StatusCode) when is_pid(Pid), is_integer(StatusCode) ->
 %% @doc Start your personalized stats_hero process.
 %%
 %% `Config' is a proplist with keys: request_label, request_action, upstream_prefixes,
-%% my_app, and request_id.
+%% my_app, request_id, and parent.  Parent is the parent process that should be
+%% monitored to avoid potential process leaks if stats_hero isn't cleaned up.
 %%
 start_link(Config) ->
     %% this server is intended to be a short-lived companion to a request process, so we
@@ -239,12 +268,13 @@ init(Config) ->
                    request_id = as_bin(gv(request_id, Config)),
                    metrics = dict:new(),
                    label_fun = gv(label_fun, Config),
-                   upstream_prefixes = gv(upstream_prefixes, Config)},
+                   upstream_prefixes = gv(upstream_prefixes, Config),
+                   parent_pid = gv(parent, Config)},
     send_start_metrics(State),
     %% register this worker with the monitor who will make us findable by ReqId and will
     %% clean up the mapping when we exit.
     register(State#state.request_id),
-    {ok, State}.
+    {ok, monitor_parent(init, State)}.
 
 %% helper function to extract values from a proplist. It is an error if the key is not
 %% found.
@@ -273,6 +303,8 @@ handle_call({read_alog, Label}, _From, #state{metrics=Metrics}=State) ->
 handle_call(_, _From, State) ->
     {reply, unhandled, State}.
 
+handle_cast({reparent, Pid}, State) ->
+    {noreply, monitor_parent(Pid, State)};
 handle_cast({ctime_time, Label, {Time, Unit}}, #state{metrics=Metrics, label_fun=LabelFun}=State) ->
     Label1 = maybe_label(Label, LabelFun),
     CTimer = fetch_ctimer(Label1, Metrics),
@@ -293,7 +325,12 @@ handle_cast(stop_worker, State) ->
     {stop, normal, State};
 handle_cast(_Request, State) ->
     {noreply, State}.
-
+handle_info({'DOWN', MonitorRef, _, _, _}, #state{
+                                              request_id = ReqId,
+                                              parent_pid = ParentPid,
+                                              parent_monitor = MonitorRef} = State) ->
+    error_logger:error_report({stats_hero_exit,{parent_pid,ParentPid, 'DOWN'}, {request_id,ReqId}}),
+    {stop, normal, State};
 handle_info(_Info, State) ->
     {noreply, State}.
 
@@ -345,6 +382,19 @@ find_req_id(Pid) when is_pid(Pid) ->
         [] -> not_found;
         [{Pid, ReqId}] -> ReqId
     end.
+
+
+-spec monitor_parent(pid() | init, #state{}) -> #state{}.
+monitor_parent(init, #state{parent_pid = ParentPid, parent_monitor = undefined} = State) ->
+    State#state{parent_monitor = erlang:monitor(process, ParentPid)};
+monitor_parent(ParentPid, #state{parent_pid = ParentPid} = State) ->
+    State;
+monitor_parent(AdoptingParentPid, #state{parent_monitor = ParentMonitor} = State) ->
+    erlang:demonitor(ParentMonitor, [flush]),
+    State#state{
+      parent_pid = AdoptingParentPid,
+      parent_monitor = erlang:monitor(process, AdoptingParentPid)
+    }.
 
 -spec register(binary()) -> ok.
 register(ReqId) ->

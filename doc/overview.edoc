@@ -62,6 +62,21 @@ using {@link stats_hero_worker_sup:new_worker/1} like this:
 stats_hero_worker_sup:new_worker(Config)
 '''
 
+This will create the stats_hero worker and set the calling process as parent.
+In the event the calling process terminates prior to cleaning up the worker,
+then the stats_hero process will log and terminate gracefully.  It is
+possible to change the monitored parent process using the reparent api.
+
+```
+stats_hero:reparent(ReqId),
+'''
+
+You can also {@link stats_hero:reparent/2} supplying a target process.
+
+```
+stats_hero:reparent(ReqId, Pid)
+'''
+
 Then proceed to call code instrumented as described above. When your
 request is complete, tell your worker process and it will send a total
 time for the request to estatsd along with details on cummulative time

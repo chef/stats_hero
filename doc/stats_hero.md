@@ -10,7 +10,7 @@
 stats_hero metric collector worker gen_server.
 __Behaviours:__ [`gen_server`](gen_server.md).
 
-__Authors:__ John Keiser ([`jkeiser@opscode.com`](mailto:jkeiser@opscode.com)), Seth Falcon ([`seth@opscode.com`](mailto:seth@opscode.com)).
+__Authors:__ John Keiser ([`jkeiser@opscode.com`](mailto:jkeiser@opscode.com)), Seth Falcon ([`seth@opscode.com`](mailto:seth@opscode.com)), Oliver Ferrigni ([`oliver@opscode.com`](mailto:oliver@opscode.com)).
 <a name="description"></a>
 
 ## Description ##
@@ -65,7 +65,9 @@ timing() = {non_neg_integer(), <a href="#type-time_unit">time_unit()</a>}
 
 
 <table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#alog-3">alog/3</a></td><td>Append <code>Msg</code> to log identified by <code>Label</code> using the stats_hero worker found via the
-specified <code>ReqId</code>.</td></tr><tr><td valign="top"><a href="#clean_worker_data-1">clean_worker_data/1</a></td><td>Remove pid/req_id mapping for the stats_hero worker given by <code>Pid</code>.</td></tr><tr><td valign="top"><a href="#code_change-3">code_change/3</a></td><td></td></tr><tr><td valign="top"><a href="#ctime-3">ctime/3</a></td><td>Update cummulative timer identified by <code>Label</code>.</td></tr><tr><td valign="top"><a href="#handle_call-3">handle_call/3</a></td><td></td></tr><tr><td valign="top"><a href="#handle_cast-2">handle_cast/2</a></td><td></td></tr><tr><td valign="top"><a href="#handle_info-2">handle_info/2</a></td><td></td></tr><tr><td valign="top"><a href="#init-1">init/1</a></td><td></td></tr><tr><td valign="top"><a href="#init_storage-0">init_storage/0</a></td><td>Initialize the ETS storage for mapping ReqId to/from stats_hero worker Pids.</td></tr><tr><td valign="top"><a href="#read_alog-2">read_alog/2</a></td><td>Retrieve log message stored at <code>Label</code> for the worker associated with <code>ReqId</code>.</td></tr><tr><td valign="top"><a href="#report_metrics-2">report_metrics/2</a></td><td>Send accumulated metric data to estatsd.</td></tr><tr><td valign="top"><a href="#snapshot-2">snapshot/2</a></td><td>Return a snapshot of currently tracked metrics.</td></tr><tr><td valign="top"><a href="#start_link-1">start_link/1</a></td><td>Start your personalized stats_hero process.</td></tr><tr><td valign="top"><a href="#stop_worker-1">stop_worker/1</a></td><td>Stop the worker with the specified <code>Pid</code>.</td></tr><tr><td valign="top"><a href="#terminate-2">terminate/2</a></td><td></td></tr></table>
+specified <code>ReqId</code>.</td></tr><tr><td valign="top"><a href="#clean_worker_data-1">clean_worker_data/1</a></td><td>Remove pid/req_id mapping for the stats_hero worker given by <code>Pid</code>.</td></tr><tr><td valign="top"><a href="#code_change-3">code_change/3</a></td><td></td></tr><tr><td valign="top"><a href="#ctime-3">ctime/3</a></td><td>Update cummulative timer identified by <code>Label</code>.</td></tr><tr><td valign="top"><a href="#handle_call-3">handle_call/3</a></td><td></td></tr><tr><td valign="top"><a href="#handle_cast-2">handle_cast/2</a></td><td></td></tr><tr><td valign="top"><a href="#handle_info-2">handle_info/2</a></td><td></td></tr><tr><td valign="top"><a href="#init-1">init/1</a></td><td></td></tr><tr><td valign="top"><a href="#init_storage-0">init_storage/0</a></td><td>Initialize the ETS storage for mapping ReqId to/from stats_hero worker Pids.</td></tr><tr><td valign="top"><a href="#read_alog-2">read_alog/2</a></td><td>Retrieve log message stored at <code>Label</code> for the worker associated with <code>ReqId</code>.</td></tr><tr><td valign="top"><a href="#reparent-1">reparent/1</a></td><td>Change the parent process of the worker identified by <code>ReqId</code> to be
+monitored by stats_hero to the calling process.</td></tr><tr><td valign="top"><a href="#reparent-2">reparent/2</a></td><td>Change the parent process of the worker identified by <code>ReqId</code> to be
+monitored by stats_hero to the process <code>Pid</code></td></tr><tr><td valign="top"><a href="#report_metrics-2">report_metrics/2</a></td><td>Send accumulated metric data to estatsd.</td></tr><tr><td valign="top"><a href="#snapshot-2">snapshot/2</a></td><td>Return a snapshot of currently tracked metrics.</td></tr><tr><td valign="top"><a href="#start_link-1">start_link/1</a></td><td>Start your personalized stats_hero process.</td></tr><tr><td valign="top"><a href="#stop_worker-1">stop_worker/1</a></td><td>Stop the worker with the specified <code>Pid</code>.</td></tr><tr><td valign="top"><a href="#terminate-2">terminate/2</a></td><td></td></tr></table>
 
 
 <a name="functions"></a>
@@ -234,6 +236,44 @@ read_alog(ReqId::pid() | binary(), Label::binary()) -&gt; iolist() | not_found
 
 
 Retrieve log message stored at `Label` for the worker associated with `ReqId`.
+<a name="reparent-1"></a>
+
+### reparent/1 ###
+
+
+<pre><code>
+reparent(ReqId::<a href="#type-req_id">req_id()</a>) -&gt; ok | not_found
+</code></pre>
+
+<br></br>
+
+
+
+Change the parent process of the worker identified by `ReqId` to be
+monitored by stats_hero to the calling process.
+
+
+In the event the current process that owns the stats_hero worker is going to
+terminate, the worker can be adopted by another process.
+<a name="reparent-2"></a>
+
+### reparent/2 ###
+
+
+<pre><code>
+reparent(ReqId::<a href="#type-req_id">req_id()</a>, Pid::pid()) -&gt; ok | not_found
+</code></pre>
+
+<br></br>
+
+
+
+Change the parent process of the worker identified by `ReqId` to be
+monitored by stats_hero to the process `Pid`
+
+
+In the event the current process that owns the stats_hero worker is going to
+terminate, the worker can be adopted by another process.
 <a name="report_metrics-2"></a>
 
 ### report_metrics/2 ###
@@ -288,7 +328,8 @@ Start your personalized stats_hero process.
 
 
 `Config` is a proplist with keys: request_label, request_action, upstream_prefixes,
-my_app, and request_id.
+my_app, request_id, and parent.  Parent is the parent process that should be
+monitored to avoid potential process leaks if stats_hero isn't cleaned up.
 
 <a name="stop_worker-1"></a>
 

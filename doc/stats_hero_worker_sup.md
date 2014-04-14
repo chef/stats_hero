@@ -6,7 +6,7 @@
 
 __Behaviours:__ [`supervisor`](supervisor.md).
 
-__Authors:__ Seth Falcon ([`seth@opscode.com`](mailto:seth@opscode.com)), Kevin Smith ([`kevin@opscode.com`](mailto:kevin@opscode.com)).
+__Authors:__ Seth Falcon ([`seth@opscode.com`](mailto:seth@opscode.com)), Kevin Smith ([`kevin@opscode.com`](mailto:kevin@opscode.com)), Oliver Ferrigni ([`oliver@opscode.com`](mailto:oliver@opscode.com)).
 <a name="index"></a>
 
 ## Function Index ##
@@ -30,11 +30,13 @@ __Authors:__ Seth Falcon ([`seth@opscode.com`](mailto:seth@opscode.com)), Kevin 
 
 ### new_worker/1 ###
 
-`new_worker(Config) -> any()`
+`new_worker(InputConfig) -> any()`
 
 Start a new `stats_hero` worker.`Config` is a proplist with keys: request_label,
 request_action, estatsd_host, estatsd_port, upstream_prefixes, my_app, and
-request_id.
+request_id.  {parent, self()} added to Config as this function is called from the
+caller's process space.  The stats_hero worker will monitor the caller to avoid
+possible process leaks if the caller crashes before cleaning up the worker.
 
 __See also:__ [stats_hero:start_link/1](stats_hero.md#start_link-1).
 <a name="start_link-0"></a>
