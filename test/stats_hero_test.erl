@@ -1,4 +1,4 @@
-%% Copyright 2012 Opscode, Inc. All Rights Reserved.
+%% Copyright 2014 Opscode, Inc. All Rights Reserved.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -252,7 +252,7 @@ stats_hero_integration_test_() ->
                         %% to wait for the monitor to receive and
                         %% process the DOWN message. This is lame.
                         stats_hero:stop_worker(<<"temp1">>),
-                        wait_for_stats_hero_death(<<"temp1">>),
+                        wait_for_stats_hero_cleanup(<<"temp1">>),
                         ?assertEqual(1, stats_hero_monitor:registered_count())
                 end}
               %% put this test really last because we don't want to kill everyone
@@ -349,24 +349,35 @@ stats_hero_should_cleanup_when_parent_dies_test() ->
 
     %% Test that initial parent is monitored
     ?assertEqual(0,stats_hero_monitor:registered_count()),
-    InitialParentMonitored = create_stats_hero_worker_async(Config),
+    InitialParentMonitored = create_stats_hero_parent(Config),
     ?assertEqual(1, stats_hero_monitor:registered_count()),
-    wait_for_death(InitialParentMonitored),
-    wait_for_stats_hero_death(ReqId),
+    send_kill(InitialParentMonitored),
+    wait_for_stats_hero_cleanup(ReqId),
     ?assertEqual(0, stats_hero_monitor:registered_count()),
     %% Test that death of an intermediate parent does not take down worker
-    FirstParent = create_stats_hero_worker_async(Config),
+    FirstParent = create_stats_hero_parent(Config),
     ?assertEqual(1, stats_hero_monitor:registered_count()),
     FinalParent = proc_lib:spawn( fun  wait_for_kill/0 ),
     stats_hero:reparent(ReqId, FinalParent),
     ?assertEqual(1, stats_hero_monitor:registered_count()),
-    wait_for_death(FirstParent),
+    send_kill(FirstParent),
+    ?assertEqual([], stats_hero:read_alog(ReqId, <<"">>)),
+    send_kill(FinalParent),
+    wait_for_stats_hero_cleanup(ReqId),
+    ?assertEqual(0, stats_hero_monitor:registered_count()),
+
+    OverriddenParent = proc_lib:spawn( fun wait_for_kill/0 ),
+    NotParent = create_stats_hero_parent([{parent, OverriddenParent} | Config]),
     ?assertEqual(1, stats_hero_monitor:registered_count()),
-    wait_for_death(FinalParent),
-    wait_for_stats_hero_death(ReqId),
+    send_kill(NotParent),
+    ?assertEqual([], stats_hero:read_alog(ReqId, <<"">>)),
+    ?assertEqual(1, stats_hero_monitor:registered_count()),
+    send_kill(OverriddenParent),
+    wait_for_stats_hero_cleanup(ReqId),
     ?assertEqual(0, stats_hero_monitor:registered_count()).
 
-create_stats_hero_worker_async(Config) ->
+
+create_stats_hero_parent(Config) ->
     Self = self(),
     Pid = proc_lib:spawn(fun() ->
                            {ok, _} = stats_hero_worker_sup:new_worker(Config),
@@ -379,22 +390,16 @@ create_stats_hero_worker_async(Config) ->
     end,
     Pid.
 
-wait_for_death(Pid) ->
-    Pid ! kill,
-    wait_for_death(Pid, process_info(Pid)).
+send_kill(Pid) ->
+    Pid ! kill.
 
-wait_for_death(_Pid, undefined) ->
+wait_for_stats_hero_cleanup(ReqId) ->
+    wait_for_stats_hero_cleanup(ReqId, stats_hero:alog(ReqId, <<"">>, <<"">>)).
+
+wait_for_stats_hero_cleanup(_, not_found) ->
     ok;
-wait_for_death(Pid, _) ->
-    wait_for_death(Pid, process_info(Pid)).
-
-wait_for_stats_hero_death(ReqId) ->
-    wait_for_stats_hero_death(ReqId, stats_hero:alog(ReqId, <<"">>, <<"">>)).
-
-wait_for_stats_hero_death(_, not_found) ->
-    ok;
-wait_for_stats_hero_death(ReqId, _) ->
-    wait_for_stats_hero_death(ReqId, stats_hero:alog(ReqId, <<"">>, <<"">>)).
+wait_for_stats_hero_cleanup(ReqId, _) ->
+    wait_for_stats_hero_cleanup(ReqId, stats_hero:alog(ReqId, <<"">>, <<"">>)).
 
 wait_for_kill() ->
     receive

@@ -128,16 +128,16 @@ ctime(ReqId, Label, Fun) when is_function(Fun) ->
 ctime(ReqId, Label, {Time, Unit}) ->
     worker_ctime(ReqId, Label, {Time, Unit}).
 
--spec reparent(req_id()) -> ok.
+-spec reparent(req_id()) -> ok | not_found.
 %% @doc Change the parent process of the worker identified by `ReqId' to be
-%% monitored by stats_hero to the current process.
+%% monitored by stats_hero to the calling process.
 %%
 %% In the event the current process that owns the stats_hero worker is going to
 %% terminate, the worker can be adopted by another process.
 reparent(ReqId) ->
     reparent(ReqId, self()).
 
--spec reparent(req_id(), pid()) -> ok.
+-spec reparent(req_id(), pid()) -> ok | not_found.
 %% @doc Change the parent process of the worker identified by `ReqId' to be
 %% monitored by stats_hero to the process `Pid'
 %%
@@ -247,7 +247,7 @@ report_metrics(Pid, StatusCode) when is_pid(Pid), is_integer(StatusCode) ->
 %% @doc Start your personalized stats_hero process.
 %%
 %% `Config' is a proplist with keys: request_label, request_action, upstream_prefixes,
-%% my_app, request_id and parent.  Parent is the parent process that should be
+%% my_app, request_id, and parent.  Parent is the parent process that should be
 %% monitored to avoid potential process leaks if stats_hero isn't cleaned up.
 %%
 start_link(Config) ->
@@ -274,7 +274,7 @@ init(Config) ->
     %% register this worker with the monitor who will make us findable by ReqId and will
     %% clean up the mapping when we exit.
     register(State#state.request_id),
-    {ok, monitor_parent(State)}.
+    {ok, monitor_parent(init, State)}.
 
 %% helper function to extract values from a proplist. It is an error if the key is not
 %% found.
@@ -384,16 +384,12 @@ find_req_id(Pid) when is_pid(Pid) ->
     end.
 
 
--spec monitor_parent(#state{}) ->#state{}.
-monitor_parent(State) ->
-    monitor_parent(init, State).
-
 -spec monitor_parent(pid() | init, #state{}) -> #state{}.
 monitor_parent(init, #state{parent_pid = ParentPid, parent_monitor = undefined} = State) ->
     State#state{parent_monitor = erlang:monitor(process, ParentPid)};
 monitor_parent(ParentPid, #state{parent_pid = ParentPid} = State) ->
     State;
-monitor_parent(AdoptingParentPid, #state{parent_pid = _ParentPid, parent_monitor = ParentMonitor} = State) ->
+monitor_parent(AdoptingParentPid, #state{parent_monitor = ParentMonitor} = State) ->
     erlang:demonitor(ParentMonitor, [flush]),
     State#state{
       parent_pid = AdoptingParentPid,
