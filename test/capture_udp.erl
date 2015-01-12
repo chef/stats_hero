@@ -77,16 +77,13 @@ read() ->
 
 -spec read_at_least(non_neg_integer()) -> {non_neg_integer(), iolist()}.
 read_at_least(Num) ->
-    {Count, List} = read(),
-    case Count of
-        N when N < Num ->
-            {NCount, NList} = read_at_least(Num - N),
-            {Count + NCount, lists:append(List, NList)};
-        _ ->
-            {Count, List}
-    end.
+    read_at_least(Num, {0, []}).
 
-
+read_at_least(N, {Count, List}) when N =< 0 ->
+    {Count, lists:flatten(List)};
+read_at_least(N, {Count, List}) ->
+    {NCount, NList} = read(),
+    read_at_least(N - NCount, {Count + NCount, [List|NList]}).
 
 %% ------------------------------------------------------------------
 %% gen_server Function Definitions
