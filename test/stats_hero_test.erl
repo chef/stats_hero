@@ -132,12 +132,11 @@ stats_hero_statsd_test_() ->
              setup_stats_hero(Config)
      end,
      fun(_X) -> cleanup_stats_hero() end,
-     fun({_ReqId, _Config, Calls}) ->
+     fun({_ReqId, _Config, _Calls}) ->
              [
               {"statsd-compatible output is emitted over udp",
                fun() ->
-                       timer:sleep(100),
-                       {_MsgCount, Msg} = capture_udp:read(),
+                       {_MsgCount, Msg} = capture_udp:read_at_least(2),
                        [GotStart, GotEnd] = [ parse_shp(M) || M <- Msg ],
                        ExpectStart =
                            [{<<"test_hero.application.allRequests">>,<<"1">>,<<"c">>},
@@ -262,8 +261,7 @@ stats_hero_integration_test_() ->
 
                {"udp is captured",
                 fun() ->
-
-                        {_MsgCount, Msg} = capture_udp:read(),
+                        {_MsgCount, Msg} = capture_udp:read_at_least(2),
                         [GotStart, GotEnd] = [ parse_shp(M) || M <- Msg ],
                         ExpectStart =
                             [{<<"test_hero.application.allRequests">>,<<"1">>,<<"m">>},
