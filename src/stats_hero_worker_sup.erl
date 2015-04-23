@@ -41,12 +41,18 @@
 %% @see stats_hero:start_link/1
 new_worker(InputConfig) ->
     Config = case proplists:is_defined(parent, InputConfig) of
-        true ->
-            InputConfig;
-        false ->
-            [{parent, self()} | InputConfig]
-    end,
-    supervisor:start_child(?SERVER,[Config]).
+                 true ->
+                     InputConfig;
+                 false ->
+                     [{parent, self()} | InputConfig]
+             end,
+    Config1 = case proplists:is_defined(protocol, Config) of
+                  true ->
+                      Config;
+                  false ->
+                      [{protocol, envy:get(stats_hero, protocol, estatsd, atom)} | Config]
+              end,
+    supervisor:start_child(?SERVER,[Config1]).
 
 start_link() ->
     supervisor:start_link({local, ?SERVER}, ?MODULE, []).

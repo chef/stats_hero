@@ -42,8 +42,7 @@ init([]) ->
     ok = pg2:create(?SH_SENDER_POOL),
     Host = envy:get(stats_hero, estatsd_host, string),
     Port = envy:get(stats_hero, estatsd_port, pos_integer),
-    Protocol = envy:get(stats_hero, protocol, estatsd, atom),
-    Config = [{estatsd_host, Host}, {estatsd_port, Port}, {group_name, stats_hero_sender_pool}, {protocol, Protocol}],
+    Config = [{estatsd_host, Host}, {estatsd_port, Port}, {group_name, stats_hero_sender_pool}],
     StartUp = {stats_hero_sender, start_link, [Config]},
     Children = [ {make_id(I), StartUp, permanent, brutal_kill, worker, [stats_hero_sender]}
                  || I <- lists:seq(1, SenderCount) ],
