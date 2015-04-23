@@ -70,6 +70,7 @@
                                      non_neg_integer()} | undefined,
           my_app                 :: binary(),
           my_host                :: binary(),
+          protocol               :: estatsd | statsd,
           request_label          :: binary(),   % roles
           request_action         :: binary(),   % update
           request_id             :: binary(),
@@ -226,7 +227,7 @@ read_alog(ReqId, Label) when is_binary(ReqId) ->
     end;
 read_alog(Pid, Label) when is_pid(Pid) ->
     gen_server:call(Pid, {read_alog, Label}).
-        
+
 -spec report_metrics(pid() | binary(), integer()) -> not_found | ok.
 %% @doc Send accumulated metric data to estatsd. `ReqId' is used to find the appropriate
 %% stats_hero worker process. `StatusCode' is an integer (usually an HTTP status code) used
@@ -263,6 +264,7 @@ init(Config) ->
     State = #state{start_time = os:timestamp(),
                    my_app = as_bin(gv(my_app, Config)),
                    my_host = hostname(),
+                   protocol = gv(protocol, Config),
                    request_label = as_bin(gv(request_label, Config)),
                    request_action = as_bin(gv(request_action, Config)),
                    request_id = as_bin(gv(request_id, Config)),
@@ -471,6 +473,22 @@ hostname() ->
         Dot -> list_to_binary(string:substr(FullyQualified, 1, Dot - 1))
     end.
 
+metric_label(MetricType, estatsd) ->
+    case MetricType of
+        timer ->
+            "h";
+        counter ->
+            "m"
+    end;
+metric_label(MetricType, statsd) ->
+    case MetricType of
+        timer ->
+            "ms";
+        counter ->
+            "c"
+    end.
+
+
 -spec send_start_metrics(#state{}) -> ok.
 %% @doc Send start metrics to estatsd. These are all meters and are sent when the stats_hero
 %% process is initialized.
@@ -480,10 +498,10 @@ hostname() ->
 %%
 %% TODO: make this configurable and not Opscode specific
 send_start_metrics(#state{my_app = MyApp, my_host = MyHost,
-                          request_label = ReqLabel, request_action = ReqAction}) ->
-    Stats = [{[MyApp, ".application.allRequests"], 1, "m"},
-             {[MyApp, ".", MyHost, ".allRequests"], 1, "m"},
-             {[MyApp, ".application.byRequestType.", ReqLabel, ".", ReqAction], 1, "m"}
+                          request_label = ReqLabel, request_action = ReqAction, protocol=Protocol}) ->
+    Stats = [{[MyApp, ".application.allRequests"], 1, metric_label(counter, Protocol)},
+             {[MyApp, ".", MyHost, ".allRequests"], 1, metric_label(counter, Protocol)},
+             {[MyApp, ".application.byRequestType.", ReqLabel, ".", ReqAction], 1, metric_label(counter, Protocol)}
             ],
     Payload = [ make_metric_line(M) || M <- Stats ],
     send_payload(Payload),
@@ -507,25 +525,26 @@ send_start_metrics(#state{my_app = MyApp, my_host = MyHost,
 do_report_metrics(ReqTime, StatusCode,
                   #state{my_app = MyApp,
                          my_host = MyHost,
+                         protocol = Protocol,
                          request_label = ReqLabel,
                          request_action = ReqAction,
                          metrics = Metrics,
                          upstream_prefixes = Prefixes}) ->
     StatusStr = integer_to_list(StatusCode),
-    Stats = [{[MyApp, ".application.byStatusCode.", StatusStr], 1, "m"},
-             {[MyApp, ".", MyHost, ".byStatusCode.", StatusStr], 1, "m"},
-             {[MyApp, ".application.allRequests"], ReqTime, "h"},
-             {[MyApp, ".", MyHost, ".allRequests"], ReqTime, "h"},
-             {[MyApp, ".application.byRequestType.", ReqLabel, ".", ReqAction], ReqTime, "h"}
+    Stats = [{[MyApp, ".application.byStatusCode.", StatusStr], 1, metric_label(counter, Protocol)},
+             {[MyApp, ".", MyHost, ".byStatusCode.", StatusStr], 1, metric_label(counter, Protocol)},
+             {[MyApp, ".application.allRequests"], ReqTime, metric_label(timer, Protocol)},
+             {[MyApp, ".", MyHost, ".allRequests"], ReqTime, metric_label(timer, Protocol)},
+             {[MyApp, ".application.byRequestType.", ReqLabel, ".", ReqAction], ReqTime, metric_label(timer, Protocol)}
             ],
     UpAggregates = dict:to_list(aggregate_by_prefix(Metrics, Prefixes)),
     Upstreams = upstreams_by_prefix(Metrics, Prefixes),
-    UpstreamStats =  [ {[MyApp, ".upstreamRequests.", Upstream], CTime#ctimer.time, "h"}
+    UpstreamStats =  [ {[MyApp, ".upstreamRequests.", Upstream], CTime#ctimer.time, metric_label(timer, Protocol)}
                        || {Upstream, CTime} <- UpAggregates ++ Upstreams ],
     %% Now munge the aggregated upstream data to generate by request type label
     UpstreamByReqStats = [ {[MyApp, ".application.byRequestType.", ReqLabel, ".",
                              ReqAction, ".upstreamRequests.", Upstream],
-                            CTime#ctimer.time, "h"} || {Upstream, CTime} <- UpAggregates ],
+                            CTime#ctimer.time, metric_label(timer, Protocol)} || {Upstream, CTime} <- UpAggregates ],
     Payload = [ make_metric_line(M) || M <- Stats ++ UpstreamStats ++ UpstreamByReqStats ],
     send_payload(Payload),
     ok.

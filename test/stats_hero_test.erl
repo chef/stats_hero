@@ -30,9 +30,9 @@ do_repeat(Fun, N) ->
     Fun(),
     do_repeat(Fun, N - 1).
 
-call_for_type({sleep, X}) ->    
+call_for_type({sleep, X}) ->
     fun() -> timer:sleep(X) end;
-call_for_type({time, X}) -> 
+call_for_type({time, X}) ->
     {X, ms}.
 
 expand_label(K) ->
@@ -94,6 +94,7 @@ stats_hero_missing_required_config_test_() ->
              %% pass a complete config to the tests, we'll delete keys from it for testing.
              [{request_label, <<"nodes">>},
               {request_action, <<"PUT">>},
+              {protocol, estatsd},
               {upstream_prefixes, ?UPSTREAMS},
               {my_app, <<"test_hero">>},
               {label_fun, {test_util, label}},
@@ -116,11 +117,64 @@ stats_hero_missing_required_config_test_() ->
                 end} || Key <- Keys ]
      end}.
 
+stats_hero_statsd_test_() ->
+    {setup,
+     fun() ->
+             Config = [{request_label, <<"nodes">>},
+                       {request_action, <<"PUT">>},
+                       {protocol, statsd},
+                       {upstream_prefixes, ?UPSTREAMS},
+                       %% specify a config entry as a string to
+                       %% exercise conversion to binary.
+                       {my_app, "test_hero"},
+                       {label_fun, {test_util, label}},
+                       {request_id, <<"req_id_123">>}],
+             setup_stats_hero(Config)
+     end,
+     fun(_X) -> cleanup_stats_hero() end,
+     fun({_ReqId, _Config, _Calls}) ->
+             [
+              {"statsd-compatible output is emitted over udp",
+               fun() ->
+                       {_MsgCount, Msg} = capture_udp:read_at_least(2),
+                       [GotStart, GotEnd] = [ parse_shp(M) || M <- Msg ],
+                       ExpectStart =
+                           [{<<"test_hero.application.allRequests">>,<<"1">>,<<"c">>},
+                            {<<"test_hero.test-host.allRequests">>,<<"1">>,<<"c">>},
+                            {<<"test_hero.application.byRequestType.nodes.PUT">>,<<"1">>,<<"c">>}],
+                       ?assertEqual(GotStart, ExpectStart),
+                       %% For the end metrics, we can't rely on the
+                       %% actual timing data, but can verify labels
+                       %% and types.
+                       ExpectEnd =
+                           [{<<"test_hero.application.byStatusCode.200">>,<<"1">>,<<"c">>},
+                            {<<"test_hero.test-host.byStatusCode.200">>,<<"1">>,<<"c">>},
+                            {<<"test_hero.application.allRequests">>,<<"109">>,<<"ms">>},
+                            {<<"test_hero.test-host.allRequests">>,<<"109">>,<<"ms">>},
+                            {<<"test_hero.application.byRequestType.nodes.PUT">>,<<"109">>,<<"ms">>},
+                            {<<"test_hero.upstreamRequests.rdbms">>,<<"1200">>,<<"ms">>},
+                            {<<"test_hero.upstreamRequests.authz">>,<<"100">>,<<"ms">>},
+                            {<<"test_hero.upstreamRequests.rdbms.nodes.put">>,<<"200">>,<<"ms">>},
+                            {<<"test_hero.upstreamRequests.rdbms.nodes.fetch">>,<<"1000">>,<<"ms">>},
+                            {<<"test_hero.upstreamRequests.authz.nodes.read">>,<<"100">>,<<"ms">>},
+                            {<<"test_hero.application.byRequestType.nodes.PUT.upstreamRequests.rdbms">>,
+                             <<"1200">>,<<"ms">>},
+                            {<<"test_hero.application.byRequestType.nodes.PUT.upstreamRequests.authz">>,
+                             <<"100">>,<<"ms">>}],
+                       [ begin
+                             ?assertEqual(ELabel, GLabel),
+                             ?assertEqual(EType, GType)
+                         end || {{ELabel, _, EType}, {GLabel, _, GType}} <- lists:zip(ExpectEnd, GotEnd) ]
+               end}
+             ]
+     end}.
+
 stats_hero_integration_test_() ->
     {setup,
      fun() ->
              Config = [{request_label, <<"nodes">>},
                        {request_action, <<"PUT">>},
+                       {protocol, estatsd},
                        {upstream_prefixes, ?UPSTREAMS},
                        %% specify a config entry as a string to
                        %% exercise conversion to binary.
@@ -169,10 +223,10 @@ stats_hero_integration_test_() ->
                                                        [<<"rdbms">>, <<"authz">>] ++ CallLabels)],
                         ExpectedAggKeys = [<<"req_time">> |
                                            lists:foldl(BuildKeys, [], [<<"rdbms">>, <<"authz">>])],
-                        
+
                         ExpectedNoAggKeys = [<<"req_time">> |
                                              lists:foldl(BuildKeys, [], CallLabels)],
-                        
+
                         Tests = [{all, ExpectedAllKeys},
                                  {agg, ExpectedAggKeys},
                                  {no_agg, ExpectedNoAggKeys}],
@@ -207,7 +261,7 @@ stats_hero_integration_test_() ->
 
                {"udp is captured",
                 fun() ->
-                        {_MsgCount, Msg} = capture_udp:read(),
+                        {_MsgCount, Msg} = capture_udp:read_at_least(2),
                         [GotStart, GotEnd] = [ parse_shp(M) || M <- Msg ],
                         ExpectStart =
                             [{<<"test_hero.application.allRequests">>,<<"1">>,<<"m">>},
@@ -238,6 +292,7 @@ stats_hero_integration_test_() ->
                               ?assertEqual(EType, GType)
                           end || {{ELabel, _, EType}, {GLabel, _, GType}} <- lists:zip(ExpectEnd, GotEnd) ]
                 end},
+
                %% put this test last because we don't want to include
                %% the startup msg in UDP verification
                {"stats_hero_monitor keeps track of workers",
@@ -267,6 +322,7 @@ stats_hero_label_fun_test_() ->
              ReqId = <<"req_id_456">>,
              Config = [{request_label, <<"nodes">>},
                        {request_action, <<"PUT">>},
+                       {protocol, estatsd},
                        {upstream_prefixes, [<<"stats_hero_testing">>]},
                        {my_app, <<"test_hero">>},
                        {label_fun, {test_util, label}},
@@ -330,10 +386,11 @@ parse_shp(Msg) ->
                     {Label, Val, Type}
                 end || [M, Type] <- MetricsRaw ],
     Metrics.
-            
+
 stats_hero_should_cleanup_when_parent_dies_test() ->
     ReqId = <<"req_id_123">>,
     Config = [{request_label, <<"nodes">>},
+              {protocol, estatsd},
               {request_action, <<"PUT">>},
               {upstream_prefixes, ?UPSTREAMS},
               %% specify a config entry as a string to

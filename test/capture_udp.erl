@@ -24,6 +24,7 @@
 
 -export([peek/0,
          read/0,
+         read_at_least/1,
          start_link/1,
          stop/0,
          what_port/0]).
@@ -73,6 +74,16 @@ peek() ->
 %% @see capture_udp:peek/0
 read() ->
     gen_server:call(?SERVER, read).
+
+-spec read_at_least(non_neg_integer()) -> {non_neg_integer(), iolist()}.
+read_at_least(Num) ->
+    read_at_least(Num, {0, []}).
+
+read_at_least(N, {Count, List}) when N =< 0 ->
+    {Count, lists:flatten(List)};
+read_at_least(N, {Count, List}) ->
+    {NCount, NList} = read(),
+    read_at_least(N - NCount, {Count + NCount, [List|NList]}).
 
 %% ------------------------------------------------------------------
 %% gen_server Function Definitions

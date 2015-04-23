@@ -84,8 +84,6 @@ start_link(Config) ->
 init(Config) ->
     {ok, Socket} = gen_udp:open(0),
     {ok, Port} = inet:port(Socket),
-    error_logger:info_msg("stats_hero_sender starting pid: ~p port: ~p~n",
-                          [self(), Port]),
     %% assumes that the sender pool has been created
     ok = pg2:join(?SH_SENDER_POOL, self()),
     State = #state{host = ?gv(estatsd_host, Config),
@@ -115,4 +113,3 @@ terminate(_Reason, _State) ->
 
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
-
