@@ -83,7 +83,6 @@ start_link(Config) ->
 
 init(Config) ->
     {ok, Socket} = gen_udp:open(0),
-    {ok, Port} = inet:port(Socket),
     %% assumes that the sender pool has been created
     ok = pg2:join(?SH_SENDER_POOL, self()),
     State = #state{host = ?gv(estatsd_host, Config),
