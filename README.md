@@ -13,7 +13,6 @@ The `stats_hero` application can help you instrument your Erlang
 application with metrics that will be reported to `estatsd` and
 browsable in Graphite.
 
-
 ### <a name="How_to_instrument_your_code_to_collect_metrics">How to instrument your code to collect metrics</a> ###
 
 Include the `stats_hero.hrl` file. Wrap calls to upstream services

@@ -63,6 +63,11 @@
 
 -include("stats_hero.hrl").
 
+-ifdef(namespaced_types).
+-type dict() :: dict:dict().
+-endif.
+
+
 -record(state, {
           start_time             :: {non_neg_integer(), non_neg_integer(),
                                      non_neg_integer()},
