@@ -137,7 +137,7 @@ stats_hero_statsd_test_() ->
               {"statsd-compatible output is emitted over udp",
                fun() ->
                        {_MsgCount, Msg} = capture_udp:read_at_least(2),
-                       [GotStart, GotEnd] = [ parse_shp(M) || M <- Msg ],
+                       [GotStart, GotEnd] = [ parse_shp(M, statsd) || M <- Msg ],
                        ExpectStart =
                            [{<<"test_hero.application.allRequests">>,<<"1">>,<<"c">>},
                             {<<"test_hero.test-host.allRequests">>,<<"1">>,<<"c">>},
@@ -378,14 +378,24 @@ stats_hero_label_fun_test_() ->
 
 %% El-Cheapo Stats Hero Protocol parsing for test verification
 parse_shp(Msg) ->
-    [Header|MetricsRaw] = [ re:split(X, "\\|") || X <- re:split(Msg, "\n") ],
+    parse_shp(Msg, estatsd).
+
+parse_shp(Msg, estatsd) ->
+    [Header|MetricsRaw] = split_lines(Msg),
     %% verify version
     [<<"1">>, _] = Header,
-    Metrics = [ begin
-                    [Label, Val] = re:split(M, ":"),
-                    {Label, Val, Type}
-                end || [M, Type] <- MetricsRaw ],
-    Metrics.
+    parse_metrics(MetricsRaw);
+parse_shp(Msg, statsd) ->
+    parse_metrics(split_lines(Msg)).
+
+split_lines(Msg) ->
+    [ re:split(X, "\\|") || X <- re:split(Msg, "\n") ].
+
+parse_metrics(Metrics) ->
+    [ begin
+          [Label, Val] = re:split(M, ":"),
+          {Label, Val, Type}
+      end || [M, Type] <- Metrics ].
 
 stats_hero_should_cleanup_when_parent_dies_test() ->
     ReqId = <<"req_id_123">>,

@@ -509,7 +509,7 @@ send_start_metrics(#state{my_app = MyApp, my_host = MyHost,
              {[MyApp, ".application.byRequestType.", ReqLabel, ".", ReqAction], 1, metric_label(counter, Protocol)}
             ],
     Payload = [ make_metric_line(M) || M <- Stats ],
-    send_payload(Payload),
+    send_payload(Payload, Protocol),
     ok.
 
 %% @doc This is where we package up the accumulated data and send to estatsd prior to
@@ -551,7 +551,7 @@ do_report_metrics(ReqTime, StatusCode,
                              ReqAction, ".upstreamRequests.", Upstream],
                             CTime#ctimer.time, metric_label(timer, Protocol)} || {Upstream, CTime} <- UpAggregates ],
     Payload = [ make_metric_line(M) || M <- Stats ++ UpstreamStats ++ UpstreamByReqStats ],
-    send_payload(Payload),
+    send_payload(Payload, Protocol),
     ok.
 
 %% @doc Return a tuple list of time and count data for collected metrics.  You can control
@@ -630,8 +630,8 @@ has_prefix(P, S) ->
         _Else -> false
     end.
 
-send_payload(Payload) ->
-    stats_hero_sender:send(Payload).
+send_payload(Payload, Protocol) ->
+    stats_hero_sender:send(Payload, Protocol).
 
 %% Note this only supports integer values, but that is the only type of value currently
 %% being used.
