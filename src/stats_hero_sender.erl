@@ -50,23 +50,30 @@
           send_socket :: inet:socket()
          }).
 
--spec send(pid(), iolist()) -> ok | {error, term()}.
+-spec send(pid(), iolist(), estatsd|statsd) -> ok | {error, term()}.
 %% @doc Send `Payload' as a Stats Hero Protocol (SHP) version 1 UDP packet to the estatsd
 %% server configured for this sender. The input Should be the bare metrics without SHP
 %% header. This function will compute the length and add the SHP version and length header
 %% to the payload.
-send(Pid, Payload) ->
+send(Pid, Payload, estatsd) ->
     Length = iolist_size(Payload),
     Packet = io_lib:format("1|~B~n~s", [Length, Payload]),
+    gen_server:call(Pid, {send, Packet});
+send(Pid, Payload, statsd) ->
+    Packet = io_lib:format("~s", [Payload]),
     gen_server:call(Pid, {send, Packet}).
 
--spec send(iolist()) -> ok | {error, term()}.
+-spec send(iolist(), estatsd|statsd) -> ok | {error, term()}.
 %% @doc Send `Payload' as in `send/2' but uses the pg2 group to find a sender.
-send(Payload) ->
+send(Payload, Protocol) ->
     case pg2:get_closest_pid(?SH_SENDER_POOL) of
         {error, Why} -> {error, Why};
-        Pid -> send(Pid, Payload)
+        Pid -> send(Pid, Payload, Protocol)
     end.
+
+-spec send(iolist()) -> ok | {error, term()}.
+send(Payload) ->
+    send(Payload, estatsd).
 
 %% @doc Start your personalized stats_hero process.
 %%
