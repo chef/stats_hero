@@ -6,7 +6,7 @@
 
 __Behaviours:__ [`supervisor`](supervisor.md).
 
-__Authors:__ Seth Falcon ([`seth@opscode.com`](mailto:seth@opscode.com)), Kevin Smith ([`kevin@opscode.com`](mailto:kevin@opscode.com)), Oliver Ferrigni ([`oliver@opscode.com`](mailto:oliver@opscode.com)).
+__Authors:__ Seth Falcon ([`seth@chef.io`](mailto:seth@chef.io)), Kevin Smith ([`kevin@chef.io`](mailto:kevin@chef.io)), Oliver Ferrigni ([`oliver@chef.io`](mailto:oliver@chef.io)).
 <a name="index"></a>
 
 ## Function Index ##

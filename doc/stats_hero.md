@@ -10,7 +10,7 @@
 stats_hero metric collector worker gen_server.
 __Behaviours:__ [`gen_server`](gen_server.md).
 
-__Authors:__ John Keiser ([`jkeiser@opscode.com`](mailto:jkeiser@opscode.com)), Seth Falcon ([`seth@opscode.com`](mailto:seth@opscode.com)), Oliver Ferrigni ([`oliver@opscode.com`](mailto:oliver@opscode.com)).
+__Authors:__ John Keiser ([`jkeiser@chef.io`](mailto:jkeiser@chef.io)), Seth Falcon ([`seth@chef.io`](mailto:seth@chef.io)), Oliver Ferrigni ([`oliver@chef.io`](mailto:oliver@chef.io)).
 <a name="description"></a>
 
 ## Description ##

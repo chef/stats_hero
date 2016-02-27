@@ -9,7 +9,7 @@
 The stats_hero_monitor monitors stats_hero worker processes.
 __Behaviours:__ [`gen_server`](gen_server.md).
 
-__Authors:__ Seth Falcon ([`seth@opscode.com`](mailto:seth@opscode.com)).
+__Authors:__ Seth Falcon ([`seth@chef.io`](mailto:seth@chef.io)).
 <a name="description"></a>
 
 ## Description ##

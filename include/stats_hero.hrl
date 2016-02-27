@@ -1,6 +1,6 @@
 %% -*- erlang-indent-level: 4;indent-tabs-mode: nil; fill-column: 92 -*-
 %% ex: ts=4 sw=4 et
-%% @author Seth Falcon <seth@opscode.com>
+%% @author Seth Falcon <seth@chef.io>
 %% @doc Send timing data for Mod:Fun(Args) to the stats_hero worker
 %% processes associated with `ReqId'.
 %%
@@ -11,7 +11,7 @@
 %% abusing the text replacement and expect Args to be of the form
 %% '(arg1, arg2, ..., argN)'.
 %% @end
-%% Copyright 2012 Opscode, Inc. All Rights Reserved.
+%% Copyright 2014-2016 Chef Software, Inc. All Rights Reserved.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file

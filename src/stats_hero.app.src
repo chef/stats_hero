@@ -1,4 +1,4 @@
-%% Copyright 2012 Opscode, Inc. All Rights Reserved.
+%% Copyright 2014-2016 Chef Software, Inc. All Rights Reserved.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -17,7 +17,7 @@
 
 {application, stats_hero,
  [
-  {description, "Metrics and logging helper app for Opscode Erlang projects"},
+  {description, "Metrics and logging helper app for Chef Erlang projects"},
   {vsn, git},
   {registered, [stats_hero_monitor, stats_hero_worker_sup]},
   {applications, [

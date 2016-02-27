@@ -6,7 +6,7 @@
 
 __Behaviours:__ [`application`](application.md).
 
-__Authors:__ Seth Falcon ([`seth@opscode.com`](mailto:seth@opscode.com)).
+__Authors:__ Seth Falcon ([`seth@chef.io`](mailto:seth@chef.io)).
 <a name="index"></a>
 
 ## Function Index ##
