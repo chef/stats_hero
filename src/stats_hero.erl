@@ -1,15 +1,15 @@
 %% -*- erlang-indent-level: 4;indent-tabs-mode: nil; fill-column: 92 -*-
 %% ex: ts=4 sw=4 et
-%% @author John Keiser <jkeiser@opscode.com>
-%% @author Seth Falcon <seth@opscode.com>
-%% @author Oliver Ferrigni <oliver@opscode.com>
+%% @author John Keiser <jkeiser@chef.io>
+%% @author Seth Falcon <seth@chef.io>
+%% @author Oliver Ferrigni <oliver@chef.io>
 %% @doc stats_hero metric collector worker gen_server
 %%
 %% This module implements the stats_hero worker, a gen_server used by a another process
 %% (e.g. Webmachine request), to aggregate timing data and send it to estatsd.
 %%
 %% @end
-%% Copyright 2011-2012 Opscode, Inc. All Rights Reserved.
+%% Copyright 2011-2016 Chef Software, Inc. All Rights Reserved.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -501,7 +501,7 @@ metric_label(MetricType, statsd) ->
 %% We currently record application all requests, application by host all
 %% requests, and application by request type.
 %%
-%% TODO: make this configurable and not Opscode specific
+%% TODO: make this configurable and not Chef specific
 send_start_metrics(#state{my_app = MyApp, my_host = MyHost,
                           request_label = ReqLabel, request_action = ReqAction, protocol=Protocol}) ->
     Stats = [{[MyApp, ".application.allRequests"], 1, metric_label(counter, Protocol)},

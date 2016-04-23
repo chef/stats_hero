@@ -9,7 +9,7 @@
 stats_hero_sender gen_server to send metrics over UDP.
 __Behaviours:__ [`gen_server`](gen_server.md).
 
-__Authors:__ Seth Falcon ([`seth@opscode.com`](mailto:seth@opscode.com)).
+__Authors:__ Seth Falcon ([`seth@chef.io`](mailto:seth@chef.io)).
 <a name="index"></a>
 
 ## Function Index ##

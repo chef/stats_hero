@@ -1,9 +1,9 @@
 %% -*- erlang-indent-level: 4;indent-tabs-mode: nil;fill-column: 92 -*-
 %% ex: ts=4 sw=4 et
-%% @author Seth Falcon <seth@opscode.com>
-%% @author Kevin Smith <kevin@opscode.com>
-%% @author Oliver Ferrigni <oliver@opscode.com>
-%% Copyright 2014 Opscode, Inc. All Rights Reserved.
+%% @author Seth Falcon <seth@chef.io>
+%% @author Kevin Smith <kevin@chef.io>
+%% @author Oliver Ferrigni <oliver@chef.io>
+%% Copyright 2014-2016 Chef Software, Inc. All Rights Reserved.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file

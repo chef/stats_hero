@@ -2,9 +2,9 @@
 
 # stats_hero your metrics and logging helper #
 
-Copyright (c) 2012 Opscode, Inc.
+Copyright (c) 2014-2016 Chef Software, Inc.
 
-__Authors:__ Seth Falcon ([`seth@opscode.com`](mailto:seth@opscode.com)).
+__Authors:__ Seth Falcon ([`seth@chef.io`](mailto:seth@chef.io)).
 
 
 ### <a name="Overview">Overview</a> ###
@@ -181,7 +181,7 @@ module to upstream label. We'd like to make this configurable.
 
 ### <a name="LICENSE">LICENSE</a> ###
 
-Copyright 2011-2012 Opscode, Inc. All Rights Reserved.
+Copyright 2011-2016 Chef Software, Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you
 may not use this file except in compliance with the License.  You may
