@@ -83,7 +83,7 @@
           label_fun              :: {atom(), atom()},
           upstream_prefixes = [] :: [binary()],
           parent_pid             :: pid(),
-          parent_monitor         :: reference()
+          parent_monitor         :: undefined | reference()
          }).
 
 -record(ctimer, {count = 0 :: non_neg_integer(),
