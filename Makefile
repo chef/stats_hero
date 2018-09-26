@@ -1,37 +1,35 @@
-DEPS = deps/meck
+REBAR=$(shell which rebar3 || echo ./rebar3)
 
 all: compile eunit dialyzer
 
-clean:
-	@rebar skip_deps=true clean
+clean: $(REBAR)
+	$(REBAR) as dev clean
+	$(REBAR) as test clean
 
-allclean:
-	@rebar clean
-
-distclean:
-	@rebar skip_deps=true clean
-	@rm -rf deps
-
-compile: $(DEPS)
-	@rebar compile
+compile: $(REBAR)
+	$(REBAR) as dev compile
 
 dialyzer:
-	@dialyzer -Wunderspecs -r ebin
+	$(REBAR) dialyzer
 
-$(DEPS):
-	@rebar get-deps
+doc: $(REBAR)
+	$(REBAR) doc skip_deps=true
 
-doc:
-	@rebar doc skip_deps=true
+eunit: $(REBAR) compile
+	$(REBAR) eunit --dir=test 
 
-eunit: compile
-	@rebar skip_deps=true eunit
+test: $(REBAR) eunit
 
-test: eunit
-
-tags: TAGS
+tags: $(REBAR) TAGS
 
 TAGS:
-	mkdir -p deps;find src deps -name "*.[he]rl" -print | etags -
+	mkdir -p deps;find src _build -name "*.[he]rl" -print | etags -
 
 .PHONY: tags doc
+
+REBAR_URL = https://s3.amazonaws.com/rebar3/rebar3
+
+./rebar3:
+	@echo "Fetching rebar3 from $(REBAR_URL)"
+	@erl -noinput -noshell -s inets -s ssl  -eval '{ok, _} = httpc:request(get, {"${REBAR_URL}", []}, [], [{stream, "${REBAR}"}])' -s init stop
+	chmod +x ${REBAR}
