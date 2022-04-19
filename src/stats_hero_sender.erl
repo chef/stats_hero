@@ -64,11 +64,11 @@ send(Pid, Payload, statsd) ->
     gen_server:call(Pid, {send, Packet}).
 
 -spec send(iolist(), estatsd|statsd) -> ok | {error, term()}.
-%% @doc Send `Payload' as in `send/2' but uses the pg2 group to find a sender.
+%% @doc Send `Payload' as in `send/2' but uses the pg group to find a sender.
 send(Payload, Protocol) ->
-    case pg2:get_closest_pid(?SH_SENDER_POOL) of
-        {error, Why} -> {error, Why};
-        Pid -> send(Pid, Payload, Protocol)
+    case pg:get_local_members(?SH_SENDER_POOL) of
+        []        -> {error, "no processes in process group"};
+        [Pid | _] -> send(Pid, Payload, Protocol)
     end.
 
 -spec send(iolist()) -> ok | {error, term()}.
@@ -80,7 +80,7 @@ send(Payload) ->
 %% `Config' is a proplist with keys: estatsd_host and estatsd_port.
 %%
 start_link(Config) ->
-    %% this server is intended to be part of a pg2 pool, so we
+    %% this server is intended to be part of a pg pool, so we
     %% avoid registering by name.
     gen_server:start_link(?MODULE, Config, []).
 
@@ -91,7 +91,7 @@ start_link(Config) ->
 init(Config) ->
     {ok, Socket} = gen_udp:open(0),
     %% assumes that the sender pool has been created
-    ok = pg2:join(?SH_SENDER_POOL, self()),
+    ok = pg:join(?SH_SENDER_POOL, self()),
     State = #state{host = ?gv(estatsd_host, Config),
                    port = ?gv(estatsd_port, Config),
                    send_socket = Socket},
