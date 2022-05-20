@@ -34,7 +34,6 @@
 -define(SERVER, ?MODULE).
 
 start_link() ->
-    {ok, _} = pg:start_link(),
     supervisor:start_link({local, ?SERVER}, ?MODULE, []).
 
 init([]) ->

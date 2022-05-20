@@ -31,7 +31,7 @@
 -export([init/1]).
 
 -define(SERVER, ?MODULE).
-
+-include("stats_hero_sender.hrl").
 
 start_link() ->
     supervisor:start_link({local, ?SERVER}, ?MODULE, []).
@@ -39,7 +39,7 @@ start_link() ->
 init([]) ->
     SenderCount = envy:get(stats_hero, udp_socket_pool_size, pos_integer),
     error_logger:info_msg("starting stats_hero_sender_sup with ~B senders~n", [SenderCount]),
-
+    ok = pg2:create(?SH_SENDER_POOL),
     Host = envy:get(stats_hero, estatsd_host, string),
     Port = envy:get(stats_hero, estatsd_port, pos_integer),
     Config = [{estatsd_host, Host}, {estatsd_port, Port}, {group_name, stats_hero_sender_pool}],
