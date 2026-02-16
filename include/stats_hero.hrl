@@ -11,7 +11,7 @@
 %% abusing the text replacement and expect Args to be of the form
 %% '(arg1, arg2, ..., argN)'.
 %% @end
-%% Copyright 2014-2016 Chef Software, Inc. All Rights Reserved.
+%% Copyright (c) 2012-2022 Progress Software Corporation and/or its subsidiaries or affiliates. All Rights Reserved.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
