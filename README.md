@@ -2,8 +2,6 @@
 
 # stats_hero your metrics and logging helper #
 
-Copyright (c) 2012-2016 Chef Software, Inc.
-
 __Authors:__ Seth Falcon ([`seth@chef.io`](mailto:seth@chef.io)).
 
 
@@ -180,8 +178,6 @@ module to upstream label. We'd like to make this configurable.
 
 ### <a name="LICENSE">LICENSE</a> ###
 
-Copyright 2011-2016 Chef Software, Inc. All Rights Reserved.
-
 Licensed under the Apache License, Version 2.0 (the "License"); you
 may not use this file except in compliance with the License.  You may
 obtain a copy of the License at [`http://www.apache.org/licenses/LICENSE-2.0`](http://www.apache.org/licenses/LICENSE-2.0)
@@ -204,3 +200,5 @@ permissions and limitations under the License.
 <tr><td><a href="https://github.com/chef/stats_hero/blob/master/doc/stats_hero_sup.md" class="module">stats_hero_sup</a></td></tr>
 <tr><td><a href="https://github.com/chef/stats_hero/blob/master/doc/stats_hero_worker_sup.md" class="module">stats_hero_worker_sup</a></td></tr></table>
 
+# Copyright
+See [COPYRIGHT.md](./COPYRIGHT.md).
