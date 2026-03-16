@@ -4,7 +4,7 @@
 %% @doc stats_hero_sender gen_server to send metrics over UDP
 %%
 %% @end
-%% Copyright 2014-2016 Chef Software, Inc. All Rights Reserved.
+%% Copyright (c) 2012-2022 Progress Software Corporation and/or its subsidiaries or affiliates. All Rights Reserved.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
